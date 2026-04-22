@@ -102,32 +102,40 @@ def inicia_app():
 
 
 def handle_mini_menu():
-    desktop = Desktop(backend='win32')
-    form_imprimir = desktop.window(
-        title='Impressão', class_name='TForm'
-    )
-    form_imprimir.wait('ready', timeout=5)
-    form_imprimir.set_focus()
+    try:
+        desktop = Desktop(backend='win32')
+        form_imprimir = desktop.window(
+            title='Impressão', class_name='TForm'
+        )
+        form_imprimir.wait('ready', timeout=5)
+        form_imprimir.set_focus()
 
-    check_visualizar = get_field_title(
-        form_imprimir, 'TCheckBox', 'Não visualizar.'
-    )
-    check_visualizar.check_by_click()
+        check_visualizar = get_field_title(
+            form_imprimir, 'TCheckBox', 'Não visualizar.'
+        )
+        check_visualizar.check_by_click()
+
+    except Exception as e:
+        raise RuntimeError(f'Erro no mini menu da impressão: {e}')
 
 
 def handle_menu_impressao():
-    desktop = Desktop(backend='win32')
-    tela_impressao = desktop.window(
-        class_name='TfrxPrintDialog'
-    )
-    tela_impressao.wait('ready', timeout=5)
-    tela_impressao.set_focus()
+    try:
+        desktop = Desktop(backend='win32')
+        tela_impressao = desktop.window(
+            class_name='TfrxPrintDialog'
+        )
+        tela_impressao.wait('ready', timeout=5)
+        tela_impressao.set_focus()
 
-    combo_nome_impressora = get_field_index(
-        tela_impressao, 'TComboBox', 'nome_impressora'
-    )
-    combo_nome_impressora.wait('ready', timeout=5)
-    combo_nome_impressora.select('EPSON3B3537 (L4260 Series)')
+        combo_nome_impressora = get_field_index(
+            tela_impressao, 'TComboBox', 'nome_impressora'
+        )
+        combo_nome_impressora.wait('ready', timeout=5)
+        combo_nome_impressora.select('EPSON3B3537 (L4260 Series)')
 
-    tela_impressao.OK.click()
+        tela_impressao.OK.click()
+
+    except Exception as e:
+        raise RuntimeError(f'Erro no menu da impressão: {e}')
 

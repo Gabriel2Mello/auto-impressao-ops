@@ -1,4 +1,4 @@
-from time import sleep
+from time import sleep, perf_counter
 
 from pywinauto.keyboard import send_keys
 
@@ -15,12 +15,15 @@ def main():
     inicio = input('De: ').strip()
     fim = input('Para: ').strip()
 
+    start_time = perf_counter()
+
     campos = inicia_app()
     preencher_dados_fixos(campos)
 
+    print('\nIniciando processo...')
     for i in range(int(inicio), int(fim) + 1):
         numero = f'{i:06}'
-        print(f'\nImprimindo: {numero}')
+        print(f'Imprimindo: {numero}')
 
         campos['numero'].set_text(numero)
 
@@ -37,6 +40,10 @@ def main():
 
         handle_menu_impressao()
         sleep(1.5)
+
+    elapsed_time = perf_counter() - start_time
+    print(f'\nTerminado em {elapsed_time:0.2f} segundos')
+    input('Pressione Enter para fechar...')
 
 
 

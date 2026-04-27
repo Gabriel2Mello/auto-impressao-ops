@@ -1,5 +1,6 @@
 from pywinauto import Desktop
 from pywinauto.application import Application
+from pywinauto.keyboard import send_keys
 
 
 CAMPOS = {
@@ -65,14 +66,13 @@ def preencher_dados_fixos(campos):
     for nome, valor in dados.items():
         campos[nome].set_text(valor)
 
-    #campos['combo_parte'].type_keys('{DOWN}')
-
 
 def inicia_app():
     try:
         app = Application(backend='win32').connect(
             title=CAMPOS['sisplan'],
-            class_name='TApplication'
+            class_name='TApplication',
+            timeout=5
         )
 
         main_window = app.window(
@@ -80,14 +80,12 @@ def inicia_app():
             class_name='TApplication'
         )
         main_window.restore().set_focus()
-        main_window.wait('ready', timeout=5)
-
 
         janela_rel = app.window(
             title_re='.*RelFaccao01.*',
             class_name='TfmPrincipal'
         )
-        janela_rel.set_focus()
+        janela_rel.wait('ready', timeout=5)
 
         tab_envio = get_field_title(
             janela_rel, 'TTabSheet', 'Envio'
@@ -98,25 +96,25 @@ def inicia_app():
         return campos
 
     except Exception as e:
-        raise RuntimeError(f'Erro na janela do Sisplan: {e}')
+        raise RuntimeError(f'Erro ao conectar no Sisplan: {e}')
 
 
 def handle_mini_menu():
     try:
-        desktop = Desktop(backend='win32')
-        form_imprimir = desktop.window(
+        form_imprimir = Desktop(backend='win32').window(
             title='Impressão', class_name='TForm'
         )
-        form_imprimir.wait('ready', timeout=5)
-        form_imprimir.set_focus()
+        form_imprimir.wait('visible', timeout=5)
 
         check_visualizar = get_field_title(
             form_imprimir, 'TCheckBox', 'Não visualizar.'
         )
         check_visualizar.check_by_click()
 
+        send_keys(ATALHOS['ok'])
+
     except Exception as e:
-        raise RuntimeError(f'Erro no mini menu da impressão: {e}')
+        print(f'Aviso no mini menu: {e}')
 
 
 def handle_menu_impressao():
@@ -134,7 +132,11 @@ def handle_menu_impressao():
         combo_nome_impressora.wait('ready', timeout=5)
         combo_nome_impressora.select('EPSON3B3537 (L4260 Series)')
 
-        tela_impressao.OK.click()
+        #tela_impressao.OK.click()
+        cancelar_button = get_field_title(
+            tela_impressao, 'TButton', 'Cancelar'
+        )
+        cancelar_button.click()
 
     except Exception as e:
         raise RuntimeError(f'Erro no menu da impressão: {e}')

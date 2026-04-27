@@ -7,7 +7,8 @@ from src.handle_app import (
     ATALHOS,
     preencher_dados_fixos,
     handle_mini_menu,
-    handle_menu_impressao
+    handle_menu_impressao,
+    handle_carrega_consulta
 )
 
 
@@ -40,28 +41,33 @@ def main():
     start_time = perf_counter()
 
     try:
-        campos = inicia_app()
+        app, campos = inicia_app()
         preencher_dados_fixos(campos)
 
-        print('\nIniciando impressão...')
+        print('\nIniciando processo...')
         for i in range(inicio, fim + 1):
             numero = f'{i:06}'
-            print(f'Processando: {numero}')
+            print(f'\nConsultando: {numero}')
 
             campos['numero'].set_text(numero)
 
             send_keys(ATALHOS['consultar'])
-            sleep(3)
+            sleep(0.1)
 
-            send_keys(ATALHOS['imprimir'])
-            sleep(1)
+            existe = handle_carrega_consulta(app)
 
-            handle_mini_menu()
-            handle_menu_impressao()
-            sleep(1.5)
+            if existe:
+                print('Imprimindo')
+                send_keys(ATALHOS['imprimir'])
+                sleep(0.5)
+
+                handle_mini_menu(app)
+                handle_menu_impressao(app)
+            else:
+                print('Não existe no setor informado')
 
     except Exception as e:
-        print(f'ERRO: {e}')
+        print(f'\nERRO: {e}')
     finally:
         elapsed_time = perf_counter() - start_time
         print(f'\nTerminado em {elapsed_time:0.2f} segundos')

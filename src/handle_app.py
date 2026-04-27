@@ -1,4 +1,3 @@
-from pywinauto import Desktop
 from pywinauto.application import Application
 from pywinauto.keyboard import send_keys
 
@@ -93,18 +92,33 @@ def inicia_app():
 
         campos = mapear_campos(tab_envio)
 
-        return campos
+        return app, campos
 
     except Exception as e:
         raise RuntimeError(f'Erro ao conectar no Sisplan: {e}')
 
 
-def handle_mini_menu():
+def handle_carrega_consulta(app):
+    aviso = app.window(
+        title='Aviso', class_name='TfmAviso'
+    )
+
+    existe = aviso.exists()
+    if existe:
+        try:
+            aviso.wait_not('exists', timeout=5)
+        except Exception:
+            print('Aviso: Consulta demorou muito para sumir.')
+
+    return existe
+
+
+def handle_mini_menu(app):
     try:
-        form_imprimir = Desktop(backend='win32').window(
+        form_imprimir = app.window(
             title='Impressão', class_name='TForm'
         )
-        form_imprimir.wait('visible', timeout=5)
+        form_imprimir.wait('visible', timeout=2)
 
         check_visualizar = get_field_title(
             form_imprimir, 'TCheckBox', 'Não visualizar.'
@@ -117,10 +131,9 @@ def handle_mini_menu():
         print(f'Aviso no mini menu: {e}')
 
 
-def handle_menu_impressao():
+def handle_menu_impressao(app):
     try:
-        desktop = Desktop(backend='win32')
-        tela_impressao = desktop.window(
+        tela_impressao = app.window(
             class_name='TfrxPrintDialog'
         )
         tela_impressao.wait('ready', timeout=5)

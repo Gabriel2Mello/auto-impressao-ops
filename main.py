@@ -1,4 +1,3 @@
-from sys import exit
 from time import sleep, perf_counter
 
 from pywinauto.keyboard import send_keys

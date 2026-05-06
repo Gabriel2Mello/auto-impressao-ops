@@ -1,5 +1,6 @@
 from pywinauto.application import Application
 from pywinauto.keyboard import send_keys
+from pywinauto import Desktop
 
 
 CAMPOS = {
@@ -98,27 +99,12 @@ def inicia_app():
         raise RuntimeError(f'Erro ao conectar no Sisplan: {e}')
 
 
-def handle_carrega_consulta(app):
-    aviso = app.window(
-        title='Aviso', class_name='TfmAviso'
-    )
-
-    existe = aviso.exists()
-    if existe:
-        try:
-            aviso.wait_not('exists', timeout=5)
-        except Exception:
-            print('Aviso: Consulta demorou muito para sumir.')
-
-    return existe
-
-
 def handle_mini_menu(app):
     try:
         form_imprimir = app.window(
             title='Impressão', class_name='TForm'
         )
-        form_imprimir.wait('visible', timeout=2)
+        form_imprimir.wait('visible', timeout=6)
 
         check_visualizar = get_field_title(
             form_imprimir, 'TCheckBox', 'Não visualizar.'
@@ -136,20 +122,20 @@ def handle_menu_impressao(app):
         tela_impressao = app.window(
             class_name='TfrxPrintDialog'
         )
-        tela_impressao.wait('ready', timeout=5)
+        tela_impressao.wait('ready', timeout=10)
         tela_impressao.set_focus()
 
         combo_nome_impressora = get_field_index(
             tela_impressao, 'TComboBox', 'nome_impressora'
         )
-        combo_nome_impressora.wait('ready', timeout=5)
+        combo_nome_impressora.wait('ready', timeout=10)
         combo_nome_impressora.select('EPSON3B3537 (L4260 Series)')
 
-        #tela_impressao.OK.click()
-        cancelar_button = get_field_title(
-            tela_impressao, 'TButton', 'Cancelar'
-        )
-        cancelar_button.click()
+        tela_impressao.OK.click()
+        #cancelar_button = get_field_title(
+        #    tela_impressao, 'TButton', 'Cancelar'
+        #)
+        #cancelar_button.click()
 
     except Exception as e:
         raise RuntimeError(f'Erro no menu da impressão: {e}')

@@ -1,14 +1,14 @@
 from time import sleep, perf_counter
+from pywinauto import Desktop
 
-from pywinauto.keyboard import send_keys
+from pywinauto.keyboard import send_keys # type: ignore
 
 from src.handle_app import (
     inicia_app,
     ATALHOS,
     preencher_dados_fixos,
     handle_mini_menu,
-    handle_menu_impressao,
-    handle_carrega_consulta
+    handle_menu_impressao
 )
 
 
@@ -51,20 +51,17 @@ def main():
 
             campos['numero'].set_text(numero)
 
-            send_keys(ATALHOS['consultar'])
             sleep(0.1)
+            send_keys(ATALHOS['consultar'])
+            sleep(2)
 
-            existe = handle_carrega_consulta(app)
+            print('Imprimindo')
+            send_keys(ATALHOS['imprimir'])
 
-            if existe:
-                print('Imprimindo')
-                send_keys(ATALHOS['imprimir'])
-                sleep(0.5)
-
-                handle_mini_menu(app)
-                handle_menu_impressao(app)
-            else:
-                print('Não existe no setor informado')
+            handle_mini_menu(app)
+            sleep(0.1)
+            handle_menu_impressao(app)
+            sleep(0.2)
 
     except Exception as e:
         print(f'\nERRO: {e}')

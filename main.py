@@ -53,13 +53,12 @@ def main():
 
             sleep(0.1)
             send_keys(ATALHOS['consultar'])
-            sleep(2)
+            sleep(3)
 
             print('Imprimindo')
             send_keys(ATALHOS['imprimir'])
 
             handle_mini_menu(app)
-            sleep(0.1)
             handle_menu_impressao(app)
             sleep(0.2)
 

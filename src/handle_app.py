@@ -1,6 +1,6 @@
 from pywinauto.application import Application
 from pywinauto.keyboard import send_keys
-from pywinauto import Desktop
+from time import sleep
 
 
 CAMPOS = {
@@ -101,6 +101,7 @@ def inicia_app():
 
 def handle_mini_menu(app):
     try:
+        sleep(0.5)
         form_imprimir = app.window(
             title='Impressão', class_name='TForm'
         )
@@ -119,6 +120,7 @@ def handle_mini_menu(app):
 
 def handle_menu_impressao(app):
     try:
+        sleep(0.5)
         tela_impressao = app.window(
             class_name='TfrxPrintDialog'
         )

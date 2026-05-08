@@ -101,7 +101,7 @@ def inicia_app():
 
 def handle_mini_menu(app):
     try:
-        sleep(0.5)
+        sleep(1)
         form_imprimir = app.window(
             title='Impressão', class_name='TForm'
         )

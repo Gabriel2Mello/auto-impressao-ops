@@ -4,6 +4,7 @@ from pywinauto import Desktop
 from pywinauto.keyboard import send_keys # type: ignore
 
 from src.handle_app import (
+    fecha_menu_impressao,
     inicia_app,
     ATALHOS,
     preencher_dados_fixos,
@@ -39,6 +40,7 @@ def main():
         return
 
     start_time = perf_counter()
+    MAX_TENTATIVAS = 2
 
     try:
         app, campos = inicia_app()
@@ -47,20 +49,39 @@ def main():
         print('\nIniciando processo...')
         for i in range(inicio, fim + 1):
             numero = f'{i:06}'
-            print(f'\nConsultando: {numero}')
 
-            campos['numero'].set_text(numero)
+            tentativa = 1
+            sucesso = False
 
-            sleep(0.1)
-            send_keys(ATALHOS['consultar'])
-            sleep(3)
+            while tentativa <= MAX_TENTATIVAS and not sucesso:
+                if tentativa > 1:
+                    print(f'Tentando novamente o número: {numero}')
+                else:
+                    print(f'\nConsultando: {numero}')
 
-            print('Imprimindo')
-            send_keys(ATALHOS['imprimir'])
+                try:
+                    campos['numero'].set_text(numero)
+                    sleep(0.5)
 
-            handle_mini_menu(app)
-            handle_menu_impressao(app)
-            sleep(0.2)
+                    send_keys(ATALHOS['consultar'])
+                    sleep(3.5)
+
+                    print('Imprimindo')
+                    send_keys(ATALHOS['imprimir'])
+
+                    handle_mini_menu(app)
+                    sleep(0.5)
+
+                    sucesso = handle_menu_impressao(app)
+                    sleep(0.5)
+
+                    if not sucesso:
+                        raise RuntimeError('Alerta: Falha no fluxo.')
+
+                except Exception as erro_tentativa:
+                    tentativa += 1
+                    fecha_menu_impressao(app)
+
 
     except Exception as e:
         print(f'\nERRO: {e}')

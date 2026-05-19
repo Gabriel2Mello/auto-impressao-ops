@@ -101,44 +101,75 @@ def inicia_app():
 
 def handle_mini_menu(app):
     try:
-        sleep(1)
         form_imprimir = app.window(
             title='Impressão', class_name='TForm'
         )
-        form_imprimir.wait('visible', timeout=6)
+
+        if not form_imprimir.exists(timeout=2):
+            print('Aviso: Mini menu não apareceu, pulando...')
+            return True
+
+        form_imprimir.wait('visible', timeout=3)
+        sleep(0.2)
 
         check_visualizar = get_field_title(
             form_imprimir, 'TCheckBox', 'Não visualizar.'
         )
         check_visualizar.check_by_click()
 
+        form_imprimir.set_focus()
         send_keys(ATALHOS['ok'])
+
+        form_imprimir.wait_not('visible', timeout=3)
+        return True
 
     except Exception as e:
         print(f'Aviso no mini menu: {e}')
+        return False
 
 
 def handle_menu_impressao(app):
     try:
-        sleep(0.5)
         tela_impressao = app.window(
             class_name='TfrxPrintDialog'
         )
-        tela_impressao.wait('ready', timeout=10)
+        tela_impressao.wait('ready', timeout=5)
         tela_impressao.set_focus()
+        sleep(0.3)
 
         combo_nome_impressora = get_field_index(
             tela_impressao, 'TComboBox', 'nome_impressora'
         )
-        combo_nome_impressora.wait('ready', timeout=10)
+        combo_nome_impressora.wait('ready', timeout=5)
         combo_nome_impressora.select('EPSON3B3537 (L4260 Series)')
+        sleep(0.2)
 
         tela_impressao.OK.click()
         #cancelar_button = get_field_title(
         #    tela_impressao, 'TButton', 'Cancelar'
         #)
         #cancelar_button.click()
+        tela_impressao.wait_not('exists', timeout=5)
+        return True
 
     except Exception as e:
-        raise RuntimeError(f'Erro no menu da impressão: {e}')
+        print(f'Erro no menu da impressão: {e}')
+        return False
+
+
+def fecha_menu_impressao(app):
+    try:
+        tela_impressao = app.window(
+            class_name='TfrxPrintDialog'
+        )
+        if tela_impressao.exists():
+            cancelar_button = get_field_title(
+                tela_impressao, 'TButton', 'Cancelar'
+            )
+            cancelar_button.click()
+            sleep(1)
+    except:
+        pass
+
+    sleep(2)
 

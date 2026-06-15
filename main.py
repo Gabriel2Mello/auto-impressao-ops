@@ -15,8 +15,8 @@ from src.handle_app import (
 
 def input_numeros():
     try:
-        inicio_str = input('De: ').strip()
-        fim_str = input('Para:' ).strip()
+        inicio_str = input('De:  ').strip()
+        fim_str    = input('Até: ' ).strip()
 
         if not inicio_str or not fim_str:
             return None, None

@@ -105,11 +105,11 @@ def handle_mini_menu(app):
             title='Impressão', class_name='TForm'
         )
 
-        if not form_imprimir.exists(timeout=2):
+        if not form_imprimir.exists(timeout=10):
             print('Aviso: Mini menu não apareceu, pulando...')
             return True
 
-        form_imprimir.wait('visible', timeout=3)
+        form_imprimir.wait('visible', timeout=5)
         sleep(0.2)
 
         check_visualizar = get_field_title(
@@ -133,14 +133,14 @@ def handle_menu_impressao(app):
         tela_impressao = app.window(
             class_name='TfrxPrintDialog'
         )
-        tela_impressao.wait('ready', timeout=5)
+        tela_impressao.wait('ready', timeout=10)
         tela_impressao.set_focus()
         sleep(0.3)
 
         combo_nome_impressora = get_field_index(
             tela_impressao, 'TComboBox', 'nome_impressora'
         )
-        combo_nome_impressora.wait('ready', timeout=5)
+        combo_nome_impressora.wait('ready', timeout=10)
         combo_nome_impressora.select('EPSON3B3537 (L4260 Series)')
         sleep(0.2)
 

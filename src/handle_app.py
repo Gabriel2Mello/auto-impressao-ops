@@ -55,9 +55,9 @@ def mapear_campos(tab_envio):
             for nome, (classe, chave) in definicoes.items()}
 
 
-def preencher_dados_fixos(campos):
+def preencher_dados_fixos(campos, setor):
     dados = {
-        'setor': '10',
+        'setor': f'{setor}',
         'movimentacao': '',
         'lancamento': 0,
         'saida': '  /  /    ',

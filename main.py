@@ -1,7 +1,6 @@
 from time import sleep, perf_counter
-from pywinauto import Desktop
 
-from pywinauto.keyboard import send_keys # type: ignore
+from pywinauto.keyboard import send_keys
 
 from src.handle_app import (
     fecha_menu_impressao,
@@ -14,37 +13,37 @@ from src.handle_app import (
 
 
 def input_numeros():
-    try:
-        inicio_str = input('De:  ').strip()
-        fim_str    = input('Até: ' ).strip()
+    while True:
+        try:
+            inicio_str = input('De:  ').strip()
+            fim_str    = input('Até: ' ).strip()
+            setor      = input('Setor: ').strip()
 
-        if not inicio_str or not fim_str:
-            return None, None
+            inicio, fim = int(inicio_str), int(fim_str)
 
-        inicio, fim = int(inicio_str), int(fim_str)
+            if inicio >= fim:
+                print('\nErro: Número inicial maior que o final.')
+                pass
 
-        if inicio >= fim:
-            print('\nErro: Número inicial maior que o final.')
-            return None, None
-
-        return inicio, fim
-    except ValueError:
-        print("\nErro: Digite apenas números.")
-        return None, None
+            return inicio, fim, setor
+        except ValueError:
+            print("\nErro: Digite apenas números.")
 
 
 def main():
-    inicio, fim = input_numeros()
-    if inicio is None or fim is None:
+    inicio, fim, setor = input_numeros()
+    if not all([inicio, fim, setor]):
         input('Pressione Enter para Fechar...')
         return
 
     start_time = perf_counter()
     MAX_TENTATIVAS = 2
+    DELAY_CONSULTA = 3.5
+    DELAY_MINIMO = 0.5
 
     try:
         app, campos = inicia_app()
-        preencher_dados_fixos(campos)
+        preencher_dados_fixos(campos, setor)
 
         print('\nIniciando processo...')
         for i in range(inicio, fim + 1):
@@ -61,24 +60,24 @@ def main():
 
                 try:
                     campos['numero'].set_text(numero)
-                    sleep(0.5)
+                    sleep(DELAY_MINIMO)
 
                     send_keys(ATALHOS['consultar'])
-                    sleep(3.5)
+                    sleep(DELAY_CONSULTA)
 
                     print('Imprimindo')
                     send_keys(ATALHOS['imprimir'])
 
                     handle_mini_menu(app)
-                    sleep(0.5)
+                    sleep(DELAY_MINIMO)
 
                     sucesso = handle_menu_impressao(app)
-                    sleep(0.5)
+                    sleep(DELAY_MINIMO)
 
                     if not sucesso:
                         raise RuntimeError('Alerta: Falha no fluxo.')
 
-                except Exception as erro_tentativa:
+                except Exception:
                     tentativa += 1
                     fecha_menu_impressao(app)
 

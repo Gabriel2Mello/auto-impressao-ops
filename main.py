@@ -36,8 +36,10 @@ def coletar_intervalos():
             intervalos.append({'inicio': inicio, 'fim': fim, 'setor': setor})
 
             continuar = input("Adicionar outro intervalo? (s/N): ").strip().lower()
-            if continuar != 's':
+            if continuar.upper() == 'N':
                 break
+
+            print("")
 
         except ValueError:
             print("\nErro: Digite apenas números.")

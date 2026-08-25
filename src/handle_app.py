@@ -1,6 +1,5 @@
 from pywinauto.application import Application
 from pywinauto.keyboard import send_keys
-from time import sleep
 
 
 CAMPOS = {
@@ -51,8 +50,14 @@ def mapear_campos(tab_envio):
         'combo_parte':  ('TComboBox', 'combo_parte'),
     }
 
-    return {nome: get_field_index(tab_envio, classe, chave)
-            for nome, (classe, chave) in definicoes.items()}
+    return {
+        nome: get_field_index(
+            tab_envio,
+            classe,
+            chave,
+        )
+        for nome, (classe, chave) in definicoes.items()
+    }
 
 
 def preencher_dados_fixos(campos, setor):
@@ -69,7 +74,9 @@ def preencher_dados_fixos(campos, setor):
 
 def inicia_app():
     try:
-        app = Application(backend='win32').connect(
+        app = Application(
+            backend='win32'
+        ).connect(
             title=CAMPOS['sisplan'],
             class_name='TApplication',
             timeout=5
@@ -77,18 +84,20 @@ def inicia_app():
 
         main_window = app.window(
             title=CAMPOS['sisplan'],
-            class_name='TApplication'
+            class_name='TApplication',
         )
         main_window.restore().set_focus()
 
         janela_rel = app.window(
             title_re='.*RelFaccao01.*',
-            class_name='TfmPrincipal'
+            class_name='TfmPrincipal',
         )
         janela_rel.wait('ready', timeout=5)
 
         tab_envio = get_field_title(
-            janela_rel, 'TTabSheet', 'Envio'
+            janela_rel,
+            'TTabSheet',
+            'Envio',
         )
 
         campos = mapear_campos(tab_envio)
@@ -102,7 +111,8 @@ def inicia_app():
 def handle_mini_menu(app):
     try:
         form_imprimir = app.window(
-            title='Impressão', class_name='TForm'
+            title='Impressão',
+            class_name='TForm',
         )
 
         if not form_imprimir.exists(timeout=10):
@@ -110,12 +120,13 @@ def handle_mini_menu(app):
             return True
 
         form_imprimir.wait('visible', timeout=5)
-        sleep(0.2)
 
         check_visualizar = get_field_title(
-            form_imprimir, 'TCheckBox', 'Não visualizar.'
+            form_imprimir,
+            'TCheckBox',
+            'Não visualizar.',
         )
-        check_visualizar.check_by_click()
+        aguardar(check_visualizar).check_by_click()
 
         form_imprimir.set_focus()
         send_keys(ATALHOS['ok'])
@@ -135,20 +146,18 @@ def handle_menu_impressao(app):
         )
         tela_impressao.wait('ready', timeout=10)
         tela_impressao.set_focus()
-        sleep(0.3)
 
         combo_nome_impressora = get_field_index(
             tela_impressao, 'TComboBox', 'nome_impressora'
         )
         combo_nome_impressora.wait('ready', timeout=10)
         combo_nome_impressora.select('EPSON3B3537 (L4260 Series)')
-        sleep(0.2)
 
-        tela_impressao.OK.click()
+        aguardar(tela_impressao).OK.click()
         #cancelar_button = get_field_title(
         #    tela_impressao, 'TButton', 'Cancelar'
         #)
-        #cancelar_button.click()
+        #aguardar(cancelar_button).click()
         tela_impressao.wait_not('exists', timeout=5)
         return True
 
@@ -162,14 +171,20 @@ def fecha_menu_impressao(app):
         tela_impressao = app.window(
             class_name='TfrxPrintDialog'
         )
+
         if tela_impressao.exists():
             cancelar_button = get_field_title(
-                tela_impressao, 'TButton', 'Cancelar'
+                tela_impressao,
+                'TButton',
+                'Cancelar'
             )
-            cancelar_button.click()
-            sleep(1)
+            aguardar(cancelar_button).click()
+
     except:
         pass
 
-    sleep(2)
+
+def aguardar(campo, timeout=5):
+    campo.wait('ready', timeout=timeout)
+    return campo
 

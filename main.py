@@ -1,4 +1,5 @@
 from time import sleep, perf_counter
+from pathlib import Path
 
 from pywinauto.keyboard import send_keys
 
@@ -8,24 +9,31 @@ from src.handle_app import (
     ATALHOS,
     preencher_dados_fixos,
     handle_mini_menu,
-    handle_menu_impressao
+    handle_menu_impressao,
+    aguardar,
 )
 
+MODO_ENTRADA = 'arquivo' # 'arquivo', 'intervalos'
+ARQUIVO_ORDENS = Path(__file__).resolve().parent / 'ordem_producao.txt'
 MAX_TENTATIVAS = 2
-DELAY_CONSULTA = 3.5
-DELAY_MINIMO = 0.5
 RETRY_PAUSE_SECONDS = 1
 
+
+def normalizar_ordem(valor):
+    texto = str(valor).strip()
+    if not texto.isdigit():
+        raise ValueError(f'Ordem de produção inválida: {valor!r}.')
+    return f'{int(texto):06d}'
+
+
 def coletar_intervalos():
-    intervalos = []
+    lotes = []
+
     while True:
         try:
             inicio_str = input('De:  ').strip()
-            fim_str    = input('Até: ').strip()
-            setor      = input('Setor: ').strip()
-
-            if fim_str == '':
-                fim_str = inicio_str
+            fim_str    = input('Até: ').strip() or inicio_str
+            setor      = input('Setor: ').strip() or '10'
 
             inicio, fim = int(inicio_str), int(fim_str)
 
@@ -33,89 +41,120 @@ def coletar_intervalos():
                 print('\nErro: Número inicial maior que o final.')
                 continue
 
-            intervalos.append({'inicio': inicio, 'fim': fim, 'setor': setor})
+            ordens = [normalizar_ordem(numero) for numero in range (inicio, fim + 1)]
+            lotes.append({'setor': setor, 'ordens': ordens})
 
             continuar = input("Adicionar outro intervalo? (s/N): ").strip().lower()
             if continuar.upper() == 'N':
                 break
 
-            print("")
+            print()
 
-        except ValueError:
-            print("\nErro: Digite apenas números.")
+        except ValueError as e:
+            print(f"\nErro: {e}")
+
+    return lotes
+
+
+def ler_ordens_do_arquivo(caminho=ARQUIVO_ORDENS):
+    if not caminho.exists():
+        raise RuntimeError('Erro: Arquivo de ordens de produção não encontrado.')
+
+    valores = caminho.read_text(encoding='utf-8').split()
+    if not valores:
+        raise RuntimeError(f'O arquivo está vazio: {caminho}')
+
+    try:
+        return list(dict.fromkeys(normalizar_ordem(valor) for valor in valores))
+    except ValueError as e:
+        raise RuntimeError(
+            f'Erro ao ler arquivo ordem_producao.txt: {e}'
+        ) from e
+
+
+def coletar_arquivo():
+    return [{
+        'setor': input('Setor: ').strip() or '10',
+        'ordens': ler_ordens_do_arquivo(),
+    }]
+
+
+def obter_lotes(modo):
+    coletores = {
+        'intervalos': coletar_intervalos,
+        'arquivo': coletar_arquivo,
+    }
+
+    try:
+        return coletores[modo.lower()]()
+    except KeyError as e:
+        raise RuntimeError(f'Modo de entrada inválido: {modo}') from e
+
+
+def processar_ordem(app, campos, numero):
+    for tentativa in range(1, MAX_TENTATIVAS + 1):
+        mensagem = 'Consultando' if tentativa == 1 else 'Tentando novamente'
+        print(f'\n{mensagem}: {numero}')
+
+        try:
+            campo_numero = campos['numero']
+            aguardar(campo_numero).set_text(numero)
+
+            send_keys(ATALHOS['consultar'])
+
+            print('Imprimindo')
+            send_keys(ATALHOS['imprimir'])
+
+            if not handle_mini_menu(app):
+                raise RuntimeError('Falha no mini menu de impressão.')
+
+            if not handle_menu_impressao(app):
+                raise RuntimeError('Falha no menu de impressão.')
+
+            return True
+
         except Exception as e:
-            print(f"\nErro inesperado durante a entrada: {e}")
-            break
+            print(f"Erro processando {numero}: {e}")
+            fecha_menu_impressao(app)
 
-    return intervalos
-
-
-def processar_intervalo(app, campos, inicio, fim, setor):
-    preencher_dados_fixos(campos, setor)
-
-    print('\nIniciando processo para o setor:', setor)
-    for i in range(inicio, fim + 1):
-        numero = f'{i:06}'
-
-        tentativa = 1
-        sucesso = False
-
-        while tentativa <= MAX_TENTATIVAS and not sucesso:
-            if tentativa > 1:
-                print(f'Tentando novamente o número: {numero}')
-            else:
-                print(f'\nConsultando: {numero}')
-
-            try:
-                campos['numero'].set_text(numero)
-                sleep(DELAY_MINIMO)
-
-                send_keys(ATALHOS['consultar'])
-                sleep(DELAY_CONSULTA)
-
-                print('Imprimindo')
-                send_keys(ATALHOS['imprimir'])
-
-                handle_mini_menu(app)
-                sleep(DELAY_MINIMO)
-
-                sucesso = handle_menu_impressao(app)
-                sleep(DELAY_MINIMO)
-
-                if not sucesso:
-                    raise RuntimeError('Alerta: Falha no fluxo de impressão.')
-
-            except Exception as e:
-                print(f"Erro processando {numero}: {e}")
-                tentativa += 1
-                fecha_menu_impressao(app)
+            if tentativa < MAX_TENTATIVAS:
                 sleep(RETRY_PAUSE_SECONDS)
 
-    print(f'Intervalo concluído.')
+    raise RuntimeError('Alerta: Falha no fluxo de impressão.')
+
+
+def processar_lote(app, campos, lote):
+    setor = lote['setor']
+    preencher_dados_fixos(campos, setor)
+
+    print(f'\nIniciando setor {setor}: {len(lote["ordens"])} ordem(ns).')
+
+    for numero in lote['ordens']:
+        processar_ordem(app, campos, numero)
+
+    print(f'Setor {setor} concluído.')
 
 
 def main():
-    intervalos = coletar_intervalos()
-    if not intervalos:
-        input('Pressione Enter para Fechar...')
-        return
-
     start_time = perf_counter()
 
     try:
+        lotes = obter_lotes(MODO_ENTRADA)
+
+        if not lotes:
+            print('Nenhuma ondem informada.')
+            return
+
         app, campos = inicia_app()
 
-        for intervalo in intervalos:
-            inicio = intervalo['inicio']
-            fim    = intervalo['fim']
-            setor  = intervalo['setor']
-
-            processar_intervalo(app, campos, inicio, fim, setor)
+        for lote in lotes:
+            processar_lote(app, campos, lote)
 
     except Exception as e:
         print(f'\nERRO: {e}')
     finally:
         elapsed_time = perf_counter() - start_time
+
         print(f'\nTerminado em {elapsed_time:0.2f} segundos')
         input('Pressione Enter para fechar...')
 

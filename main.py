@@ -16,7 +16,7 @@ from src.handle_app import (
 MODO_ENTRADA = 'arquivo' # 'arquivo', 'intervalos'
 ARQUIVO_ORDENS = Path(__file__).resolve().parent / 'ordem_producao.txt'
 MAX_TENTATIVAS = 2
-RETRY_PAUSE_SECONDS = 1
+MIN_SLEEP_SECONDS = 1
 
 
 def normalizar_ordem(valor):
@@ -93,17 +93,19 @@ def obter_lotes(modo):
 
 def processar_ordem(app, campos, numero):
     for tentativa in range(1, MAX_TENTATIVAS + 1):
-        mensagem = 'Consultando' if tentativa == 1 else 'Tentando novamente'
-        print(f'\n{mensagem}: {numero}')
+        mensagem = '\nConsultando' if tentativa == 1 else 'Tentando novamente'
+        print(f'{mensagem}: {numero}')
 
         try:
             campo_numero = campos['numero']
             aguardar(campo_numero).set_text(numero)
 
             send_keys(ATALHOS['consultar'])
+            sleep(MIN_SLEEP_SECONDS)
 
             print('Imprimindo')
             send_keys(ATALHOS['imprimir'])
+            sleep(MIN_SLEEP_SECONDS)
 
             if not handle_mini_menu(app):
                 raise RuntimeError('Falha no mini menu de impressão.')
@@ -114,11 +116,10 @@ def processar_ordem(app, campos, numero):
             return True
 
         except Exception as e:
-            print(f"Erro processando {numero}: {e}")
             fecha_menu_impressao(app)
 
             if tentativa < MAX_TENTATIVAS:
-                sleep(RETRY_PAUSE_SECONDS)
+                sleep(MIN_SLEEP_SECONDS)
 
     raise RuntimeError('Alerta: Falha no fluxo de impressão.')
 
@@ -127,7 +128,7 @@ def processar_lote(app, campos, lote):
     setor = lote['setor']
     preencher_dados_fixos(campos, setor)
 
-    print(f'\nIniciando setor {setor}: {len(lote["ordens"])} ordem(ns).')
+    print(f'\nIniciando setor {setor}: {len(lote["ordens"])} ordens.')
 
     for numero in lote['ordens']:
         processar_ordem(app, campos, numero)

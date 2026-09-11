@@ -1,6 +1,14 @@
+from os import environ
 from pathlib import Path
+import sys
 
-ARQUIVO_ORDENS = Path(__file__).resolve().parent.parent / 'ordem_producao.txt'
+
+if getattr(sys, 'frozen', False):
+    DIRETORIO_APLICACAO = Path(sys.executable).resolve().parent
+else:
+    DIRETORIO_APLICACAO = Path(__file__).resolve().parent.parent
+
+ARQUIVO_ORDENS = DIRETORIO_APLICACAO / 'ordem_producao.txt'
 
 
 def coletar_intervalos():
@@ -15,7 +23,7 @@ def coletar_intervalos():
             inicio, fim = int(inicio_str), int(fim_str)
 
             if inicio > fim:
-                print('\nErro: Número inicial maior que o final.')
+                print('\nNúmero inicial maior que o final.')
                 continue
 
             ordens = [normalizar_ordem(numero) for numero in range (inicio, fim + 1)]
@@ -42,7 +50,7 @@ def normalizar_ordem(valor):
 
 def ler_ordens_do_arquivo(caminho=ARQUIVO_ORDENS):
     if not caminho.exists():
-        raise RuntimeError('Erro: Arquivo de ordens de produção não encontrado.')
+        raise RuntimeError('Arquivo ordem_producao.txt não encontrado.')
 
     valores = caminho.read_text(encoding='utf-8').split()
     if not valores:
@@ -73,4 +81,13 @@ def obter_lotes(modo):
         return coletores[modo.lower()]()
     except KeyError as e:
         raise RuntimeError(f'Modo de entrada inválido: {modo}') from e
+
+
+def obter_caminho_impressora():
+    caminho_impressora = environ.get('IMPRESSORA_OP', '').strip().strip('"')
+
+    if not caminho_impressora:
+        raise RuntimeError('IMPRESSORA_OP não foi configurada')
+
+    return caminho_impressora
 

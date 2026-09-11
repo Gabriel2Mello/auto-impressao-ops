@@ -1,6 +1,8 @@
 from pywinauto.application import Application
 from pywinauto.keyboard import send_keys
 
+from src.utils import obter_caminho_impressora
+
 
 CAMPOS = {
     'sisplan': 'Sisplan - 002 - NUNES ENXOVAIS IND, COM, IMP E EXP LTDA',
@@ -151,7 +153,9 @@ def handle_menu_impressao(app):
             tela_impressao, 'TComboBox', 'nome_impressora'
         )
         combo_nome_impressora.wait('ready', timeout=10)
-        combo_nome_impressora.select('EPSON3B3537 (L4260 Series)')
+
+        caminho_impressora = obter_caminho_impressora()
+        combo_nome_impressora.select(caminho_impressora)
 
         aguardar(tela_impressao).OK.click()
         #cancelar_button = get_field_title(

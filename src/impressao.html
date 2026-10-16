@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="impressao-token" content="__TOKEN__">
+  <title>Impressão de OPs · Nunes</title>
+  <link rel="icon" href="/icons/icone.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/icons/icone-192.png">
+  <link rel="stylesheet" href="/impressao.css">
+  <script src="/impressao.js" defer></script>
+</head>
+<body>
+<main>
+  <header class="cabecalho">
+    <div class="marca"><img src="/icons/icone.svg" width="48" height="48" alt=""><div><p class="sobretitulo">NUNES · AUTOMAÇÕES</p><h1>Impressão de OPs</h1><p class="muted">Organize as ordens por setor e acompanhe o envio para impressão.</p></div></div>
+    <div class="acoes"><button id="tema" type="button">Tema escuro</button><button id="encerrar" type="button">Encerrar</button></div>
+  </header>
+
+  <div class="principal">
+    <section class="cartao entrada" aria-labelledby="titulo-entrada">
+      <div class="titulo-secao"><h2 id="titulo-entrada">Preparar impressão</h2><span class="etiqueta">Uma OP por vez</span></div>
+      <div class="modos" role="group" aria-label="Forma de informar as ordens">
+        <button type="button" data-modo="intervalos" aria-pressed="true">De / Para</button>
+        <button type="button" data-modo="lista" aria-pressed="false">Lista de OPs</button>
+      </div>
+      <form id="formulario">
+        <fieldset id="campos">
+          <div id="modo-intervalos">
+            <p class="muted ajuda">Informe o início e o fim de cada intervalo, com o setor de destino.</p>
+            <div id="intervalos"></div>
+            <button id="adicionar" class="adicionar" type="button">+ Adicionar intervalo</button>
+            <p class="dica">Para uma única OP, preencha apenas “De”. O setor padrão é 10.</p>
+          </div>
+          <div id="modo-lista" hidden>
+            <p class="muted ajuda">Cole ou digite as OPs que deseja imprimir para o mesmo setor.</p>
+            <label for="ordens">Ordens de produção</label>
+            <textarea id="ordens" rows="5" maxlength="60000" placeholder="123456&#10;123457&#10;123458" aria-describedby="dica-lista"></textarea>
+            <p id="dica-lista" class="dica">Uma OP por linha, ou separadas por espaço, vírgula ou ponto e vírgula.</p>
+            <div class="setor-lista"><label for="setor-lista">Setor</label><input id="setor-lista" inputmode="numeric" maxlength="6" value="10" autocomplete="off"></div>
+          </div>
+        </fieldset>
+        <div class="acoes enviar"><button id="conferir" type="submit" class="botao-principal" disabled>Conferir OPs</button></div>
+        <p id="mensagem" class="mensagem" role="alert"></p>
+      </form>
+    </section>
+
+    <section class="cartao andamento" aria-labelledby="titulo-andamento">
+      <div class="titulo-secao"><h2 id="titulo-andamento">Andamento</h2><span id="fase" class="etiqueta">Pronto</span></div>
+      <p id="status" class="status" role="status">Pronto para conferir as OPs.</p>
+      <p id="ordem-atual" class="muted">Informe as ordens e confira o lote antes de imprimir.</p>
+      <progress id="progresso" value="0" max="1" aria-label="OPs enviadas para impressão"></progress>
+      <div class="contagem"><span><strong id="enviadas">0</strong> enviadas</span><span><strong id="total">0</strong> no lote</span></div>
+      <div class="orientacao"><p>Abra o Sisplan da empresa 002 no relatório de facção, na aba <strong>Envio</strong>.</p><p>Durante o processamento, aguarde sem usar o teclado ou o mouse.</p></div>
+      <p id="impressora" class="dica">Verificando a impressora…</p>
+      <div class="acoes enviar"><button id="parar" type="button" hidden>Parar após a OP atual</button></div>
+      <p class="dica papel">O envio ao Sisplan não confirma a saída em papel. Confira as OPs na impressora.</p>
+    </section>
+  </div>
+
+  <section class="cartao conferencia" aria-labelledby="titulo-conferencia">
+    <div class="titulo-secao"><div><h2 id="titulo-conferencia" tabindex="-1">Conferência do lote</h2><p id="resumo" class="dica">Nenhum lote conferido.</p></div><button id="imprimir" type="button" class="botao-principal" disabled>Imprimir lote</button></div>
+    <div class="tabela"><table><thead><tr><th scope="col">Setor</th><th scope="col">Quantidade</th><th scope="col">Ordens de produção</th></tr></thead><tbody id="lotes"><tr><td colspan="3" class="vazio">As OPs aparecerão aqui depois da conferência.</td></tr></tbody></table></div>
+    <p class="dica nota">OPs repetidas no mesmo setor entram uma única vez no lote. As ordens recebem no mínimo seis dígitos, como no fluxo atual.</p>
+  </section>
+  <section class="suporte"><details><summary>Atividade desta execução</summary><ol id="atividade"><li>Nenhuma OP enviada nesta execução.</li></ol></details><p id="conexao" class="dica" role="status">Conectando ao painel local…</p></section>
+</main>
+<footer class="assinatura">Desenvolvido por <a href="https://github.com/Gabriel2Mello" target="_blank" rel="noopener noreferrer" aria-label="g2mello — perfil no GitHub">g2me<span class="assinatura-ll"><span>l</span><span>l</span></span>o</a></footer>
+</body>
+</html>

@@ -1,5 +1,4 @@
 from time import sleep, perf_counter
-from pathlib import Path
 
 from pywinauto.keyboard import send_keys
 
@@ -19,8 +18,8 @@ MAX_TENTATIVAS = 2
 MODO_ENTRADA = 'arquivo' # 'arquivo', 'intervalos'
 
 
-def processar_ordem(app, campos, numero):
-    for tentativa in range(1, MAX_TENTATIVAS + 1):
+def processar_ordem(app, campos, numero, max_tentativas=MAX_TENTATIVAS):
+    for tentativa in range(1, max_tentativas + 1):
         mensagem = '\nConsultando' if tentativa == 1 else 'Tentando novamente'
         print(f'{mensagem}: {numero}')
 
@@ -46,8 +45,10 @@ def processar_ordem(app, campos, numero):
         except Exception as e:
             fecha_menu_impressao(app)
 
-            if tentativa < MAX_TENTATIVAS:
+            if tentativa < max_tentativas:
                 sleep(MIN_SLEEP_SECONDS)
+            else:
+                raise RuntimeError(f'Falha no fluxo de impressão da OP {numero}: {e}') from e
 
     raise RuntimeError('Alerta: Falha no fluxo de impressão.')
 
@@ -89,5 +90,6 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    from integracao_hub import executar_console
+    raise SystemExit(executar_console('impressao-ops', 'Impressão de OPs', main))
 

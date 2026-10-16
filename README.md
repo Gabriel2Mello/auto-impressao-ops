@@ -11,7 +11,11 @@ Use Python de **32 bits**, compatível com a automação Sisplan já utilizada n
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-Configure a impressora na variável de ambiente `IMPRESSORA_OP`, com o nome exato da fila instalada no Windows. Reinicie o programa após alterar essa variável. A interface mostra a fila configurada antes de iniciar o lote.
+No painel, clique em **Selecionar impressora**, escolha uma das filas instaladas no Windows e clique em **Usar impressora**. A lista inclui impressoras locais, conexões de rede instaladas para o usuário e filas virtuais. **Atualizar lista** consulta novamente o Windows. A presença na lista não garante que o equipamento esteja ligado; filas virtuais podem solicitar um local para salvar o arquivo.
+
+A última impressora utilizada é salva após o primeiro envio concluído pela automação, em `%LOCALAPPDATA%\Nunes\ImpressaoOPs\config.json`, e restaurada na próxima abertura, independentemente do navegador. Apenas escolher uma fila não substitui a última utilizada. Se a fila tiver sido removida ou renomeada, selecione outra antes de imprimir. Sem preferência salva, o painel aproveita `IMPRESSORA_OP`, se corresponder a uma fila instalada. O console continua usando essa variável de ambiente.
+
+A seleção permanece fixa durante todo o lote, inclusive entre setores; não é possível trocá-la durante a execução. A impressora é validada novamente antes de iniciar. Se outra aba tiver alterado a seleção, confira a impressora exibida e prepare o lote novamente. Uma falha ao salvar a preferência é exibida no painel e registrada no log, sem interromper os envios.
 
 Abra `Abrir Impressao OPs.cmd` ou execute `.\.venv\Scripts\python.exe impressao.py`. O painel abre em `http://127.0.0.1:8766`, acessível somente neste computador. A porta fixa também preserva a preferência de tema no mesmo navegador. Se outra instância estiver aberta ou a porta estiver ocupada, a abertura informa a falha.
 
@@ -20,6 +24,7 @@ Para criar um atalho com o ícone Nunes, execute `Criar Atalho Impressao OPs.ps1
 ## Como usar
 
 1. Abra o Sisplan da empresa **002** no relatório de facção (`RelFaccao01`), aba **Envio**.
+   Confira a impressora exibida no painel e use **Selecionar impressora** para escolher ou trocar a fila.
 2. Em **De / Para**, informe intervalos inclusivos e seus setores. “Para” vazio significa uma única OP. Use **Adicionar intervalo** para outros lotes.
 3. Em **Lista de OPs**, cole os números e informe o setor comum. Aceita linhas, espaços, vírgulas e ponto e vírgula. O setor vazio assume **10**, como no console.
 4. Clique em **Conferir OPs**, revise a conferência e clique em **Imprimir lote**. Alterações na entrada exigem nova conferência. Uma nova execução precisa de uma nova conferência, inclusive após falha.

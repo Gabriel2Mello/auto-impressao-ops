@@ -172,6 +172,11 @@ def criar_servidor(estado=None, porta=8766):
                 self.responder(200, estado.situacao())
             elif caminho == '/api/acompanhar':
                 self.acompanhar()
+            elif caminho == '/api/impressoras':
+                try:
+                    self.responder(200, estado.listar_impressoras())
+                except ConflitoExecucao as erro:
+                    self.responder(409, {'erro': str(erro)})
             else:
                 self.responder(404, {'erro': 'Recurso não encontrado.'})
 
@@ -200,6 +205,8 @@ def criar_servidor(estado=None, porta=8766):
                     return
                 if caminho == '/api/iniciar':
                     estado.iniciar(dados)
+                elif caminho == '/api/impressora':
+                    estado.selecionar_impressora(dados.get('impressora'))
                 elif caminho == '/api/parar':
                     estado.solicitar_parada()
                 elif caminho == '/api/encerrar':

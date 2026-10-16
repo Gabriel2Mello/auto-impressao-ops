@@ -54,6 +54,8 @@
       <div class="contagem"><span><strong id="enviadas">0</strong> enviadas</span><span><strong id="total">0</strong> no lote</span></div>
       <div class="orientacao"><p>Abra o Sisplan da empresa 002 no relatório de facção, na aba <strong>Envio</strong>.</p><p>Durante o processamento, aguarde sem usar o teclado ou o mouse.</p></div>
       <p id="impressora" class="dica">Verificando a impressora…</p>
+      <p id="aviso-impressora" class="mensagem" role="status"></p>
+      <div class="acoes enviar"><button id="selecionar-impressora" type="button" disabled>Selecionar impressora</button></div>
       <div class="acoes enviar"><button id="parar" type="button" hidden>Parar após a OP atual</button></div>
       <p class="dica papel">O envio ao Sisplan não confirma a saída em papel. Confira as OPs na impressora.</p>
     </section>
@@ -66,6 +68,15 @@
   </section>
   <section class="suporte"><details><summary>Atividade desta execução</summary><ol id="atividade"><li>Nenhuma OP enviada nesta execução.</li></ol></details><p id="conexao" class="dica" role="status">Conectando ao painel local…</p></section>
 </main>
+<dialog id="dialogo-impressora" aria-labelledby="titulo-impressora" aria-describedby="ajuda-impressora">
+  <h2 id="titulo-impressora">Selecionar impressora</h2>
+  <p id="ajuda-impressora" class="dica">Escolha uma fila instalada neste computador. A última utilizada será lembrada após o envio da primeira OP.</p>
+  <label for="lista-impressoras">Impressoras disponíveis</label>
+  <select id="lista-impressoras" size="6" aria-describedby="aviso-lista-impressoras"></select>
+  <p id="aviso-lista-impressoras" class="dica">As filas virtuais podem solicitar um local para salvar o arquivo.</p>
+  <p id="erro-impressora" class="mensagem" role="alert"></p>
+  <div class="acoes enviar"><button id="atualizar-impressoras" type="button">Atualizar lista</button><button id="cancelar-impressora" type="button">Cancelar</button><button id="confirmar-impressora" class="botao-principal" type="button" disabled>Usar impressora</button></div>
+</dialog>
 <footer class="assinatura">Desenvolvido por <a href="https://github.com/Gabriel2Mello" target="_blank" rel="noopener noreferrer" aria-label="g2mello — perfil no GitHub">g2me<span class="assinatura-ll"><span>l</span><span>l</span></span>o</a></footer>
 </body>
 </html>

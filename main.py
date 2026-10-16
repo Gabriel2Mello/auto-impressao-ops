@@ -18,7 +18,7 @@ MAX_TENTATIVAS = 2
 MODO_ENTRADA = 'arquivo' # 'arquivo', 'intervalos'
 
 
-def processar_ordem(app, campos, numero, max_tentativas=MAX_TENTATIVAS):
+def processar_ordem(app, campos, numero, max_tentativas=MAX_TENTATIVAS, impressora=None):
     for tentativa in range(1, max_tentativas + 1):
         mensagem = '\nConsultando' if tentativa == 1 else 'Tentando novamente'
         print(f'{mensagem}: {numero}')
@@ -37,7 +37,7 @@ def processar_ordem(app, campos, numero, max_tentativas=MAX_TENTATIVAS):
             if not handle_mini_menu(app):
                 raise RuntimeError('Falha no mini menu de impressão.')
 
-            if not handle_menu_impressao(app):
+            if not handle_menu_impressao(app, impressora=impressora):
                 raise RuntimeError('Falha no menu de impressão.')
 
             return True

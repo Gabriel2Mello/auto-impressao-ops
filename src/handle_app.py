@@ -141,7 +141,7 @@ def handle_mini_menu(app):
         return False
 
 
-def handle_menu_impressao(app):
+def handle_menu_impressao(app, impressora=None):
     try:
         tela_impressao = app.window(
             class_name='TfrxPrintDialog'
@@ -154,8 +154,10 @@ def handle_menu_impressao(app):
         )
         combo_nome_impressora.wait('ready', timeout=10)
 
-        caminho_impressora = obter_caminho_impressora()
+        caminho_impressora = impressora if impressora is not None else obter_caminho_impressora()
         combo_nome_impressora.select(caminho_impressora)
+        if combo_nome_impressora.selected_text() != caminho_impressora:
+            raise RuntimeError('O Sisplan não confirmou a impressora selecionada.')
 
         aguardar(tela_impressao).OK.click()
         #cancelar_button = get_field_title(

@@ -1,4 +1,6 @@
 import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 from http.client import HTTPConnection
 from threading import Event, Thread
@@ -6,6 +8,7 @@ from unittest.mock import patch
 
 from src.entrada_web import montar_lotes
 from src.interface_web import criar_servidor
+from src.impressoras import Impressoras
 from src.servico_impressao import ConflitoExecucao, EstadoImpressao
 
 
@@ -40,13 +43,29 @@ class TestEntrada(unittest.TestCase):
                 montar_lotes(entrada)
 
 
-class TestExecucao(unittest.TestCase):
-    entrada = {'modo': 'lista', 'ordens': '1 2 3', 'setor': '10'}
+class ComImpressoras(unittest.TestCase):
+    def setUp(self):
+        pasta = TemporaryDirectory()
+        self.addCleanup(pasta.cleanup)
+        self.config = Path(pasta.name) / 'config.json'
+        self.nomes = ['Impressora sintética', 'Outra impressora']
+        fabrica = patch('src.servico_impressao.Impressoras', side_effect=lambda: Impressoras(
+            self.config, listar=lambda: list(self.nomes)))
+        fabrica.start()
+        self.addCleanup(fabrica.stop)
+        ambiente = patch.dict('os.environ', {'IMPRESSORA_OP': 'Impressora sintética'})
+        ambiente.start()
+        self.addCleanup(ambiente.stop)
+
+
+class TestExecucao(ComImpressoras):
+    entrada = {'modo': 'lista', 'ordens': '1 2 3', 'setor': '10', 'impressora': 'Impressora sintética'}
 
     @patch.dict('os.environ', {'IMPRESSORA_OP': 'Impressora sintética'})
     def test_parada_termina_op_atual_e_recusa_execucao_concorrente(self):
         entrou, liberar = Event(), Event()
-        def executor(lotes, parar, atualizar):
+        def executor(lotes, parar, atualizar, impressora):
+            self.assertEqual(impressora, 'Impressora sintética')
             atualizar('atual', '000001', '10')
             entrou.set()
             self.assertTrue(liberar.wait(3))
@@ -58,6 +77,8 @@ class TestExecucao(unittest.TestCase):
         try:
             with self.assertRaises(ConflitoExecucao):
                 estado.iniciar(self.entrada)
+            with self.assertRaises(ConflitoExecucao):
+                estado.selecionar_impressora('Outra impressora')
             estado.solicitar_parada()
         finally:
             liberar.set()
@@ -68,7 +89,7 @@ class TestExecucao(unittest.TestCase):
     @patch.dict('os.environ', {'IMPRESSORA_OP': 'Impressora sintética'})
     def test_falha_nao_repete_op_e_preserva_contagem(self):
         chamadas = []
-        def executor(lotes, parar, atualizar):
+        def executor(lotes, parar, atualizar, impressora):
             chamadas.append(lotes)
             atualizar('atual', '000001', '10')
             atualizar('enviada', '000001', '10')
@@ -82,6 +103,8 @@ class TestExecucao(unittest.TestCase):
         self.assertEqual(estado.situacao()['fase'], 'erro')
         self.assertEqual(estado.situacao()['enviadas'], 1)
         self.assertEqual(estado.situacao()['atual'], '000002')
+        self.assertEqual(json.loads(self.config.read_text(encoding='utf-8')),
+                         {'ultima_impressora': 'Impressora sintética'})
 
     @patch.dict('os.environ', {}, clear=True)
     def test_impressora_ausente_impede_automacao(self):
@@ -90,9 +113,48 @@ class TestExecucao(unittest.TestCase):
             estado.iniciar(self.entrada)
         self.assertIsNone(estado.worker)
 
+    def test_fila_removida_impede_execucao(self):
+        estado = EstadoImpressao(lambda *args: self.fail('Não deve acessar Sisplan'))
+        self.nomes.clear()
+        with self.assertRaisesRegex(RuntimeError, 'não está instalada'):
+            estado.iniciar(self.entrada)
+        self.assertEqual(estado.situacao()['impressora'], '')
+        self.assertIsNone(estado.worker)
 
-class TestHttp(unittest.TestCase):
+    def test_outra_aba_altera_impressora_sem_iniciar_lote_antigo(self):
+        estado = EstadoImpressao(lambda *args: self.fail('Não deve acessar Sisplan'))
+        estado.selecionar_impressora('Outra impressora')
+        with self.assertRaisesRegex(ConflitoExecucao, 'outra aba'):
+            estado.iniciar(self.entrada)
+        self.assertFalse(self.config.exists())
+
+    def test_falha_antes_do_primeiro_envio_preserva_preferencia(self):
+        self.config.write_text(json.dumps({'ultima_impressora': 'Outra impressora'}), encoding='utf-8')
+        def executor(*args):
+            raise RuntimeError('Falha antes de enviar')
+        estado = EstadoImpressao(executor)
+        estado.selecionar_impressora('Impressora sintética')
+        with self.assertLogs(level='ERROR'):
+            estado.iniciar(self.entrada)
+            estado.worker.join(3)
+        self.assertEqual(json.loads(self.config.read_text(encoding='utf-8'))['ultima_impressora'], 'Outra impressora')
+
+    def test_falha_ao_salvar_nao_interrompe_lote(self):
+        def executor(lotes, parar, atualizar, impressora):
+            for numero in lotes[0]['ordens']:
+                atualizar('enviada', numero, '10')
+        estado = EstadoImpressao(executor)
+        with patch('src.impressoras.os.replace', side_effect=PermissionError('sem permissão')), self.assertLogs(level='ERROR'):
+            estado.iniciar(self.entrada)
+            estado.worker.join(3)
+        self.assertEqual(estado.situacao()['fase'], 'concluido')
+        self.assertEqual(estado.situacao()['enviadas'], 3)
+        self.assertIn('não foi possível lembrar', estado.situacao()['aviso_impressora'])
+
+
+class TestHttp(ComImpressoras):
     def setUp(self):
+        super().setUp()
         self.estado = EstadoImpressao(lambda *args: self.fail('Conferência não deve imprimir'))
         self.servidor, _ = criar_servidor(self.estado, porta=0)
         self.thread = Thread(target=self.servidor.serve_forever, daemon=True)
@@ -142,6 +204,22 @@ class TestHttp(unittest.TestCase):
         resposta, _ = self.requisicao('POST', '/api/conferir', {'modo': 'lista', 'ordens': 'erro'}, self.autorizacao())
         self.assertEqual(resposta.status, 400)
 
+    def test_listar_selecionar_e_validar_impressoras_exige_autorizacao(self):
+        for metodo, caminho, dados in [('GET', '/api/impressoras', None),
+                                        ('POST', '/api/impressora', {'impressora': 'Outra impressora'})]:
+            resposta, _ = self.requisicao(metodo, caminho, dados)
+            self.assertEqual(resposta.status, 403)
+        resposta, conteudo = self.requisicao('GET', '/api/impressoras', cabecalhos=self.autorizacao())
+        self.assertEqual(resposta.status, 200)
+        self.assertEqual(json.loads(conteudo)['impressoras'], self.nomes)
+        resposta, conteudo = self.requisicao('POST', '/api/impressora', {'impressora': 'Outra impressora'}, self.autorizacao())
+        self.assertEqual(resposta.status, 200)
+        self.assertEqual(json.loads(conteudo)['impressora'], 'Outra impressora')
+        self.assertFalse(self.config.exists())
+        resposta, _ = self.requisicao('POST', '/api/impressora', {'impressora': 'Não instalada'}, self.autorizacao())
+        self.assertEqual(resposta.status, 400)
+        self.assertEqual(self.estado.situacao()['impressora'], 'Outra impressora')
+
     def test_canal_envia_estado_inicial_e_somente_conexao_quando_parado(self):
         conexao = HTTPConnection('127.0.0.1', self.servidor.server_port, timeout=3)
         try:
@@ -163,8 +241,9 @@ class TestHttp(unittest.TestCase):
             conexao.close()
 
 
-class TestFechamento(unittest.TestCase):
+class TestFechamento(ComImpressoras):
     def setUp(self):
+        super().setUp()
         self.estado = EstadoImpressao()
         self.servidor, _ = criar_servidor(self.estado, porta=0)
         self.addCleanup(self.servidor.server_close)

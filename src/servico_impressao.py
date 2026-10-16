@@ -4,10 +4,10 @@ import logging
 from threading import Event, Lock, Thread
 
 from src.entrada_web import montar_lotes
-from src.utils import obter_caminho_impressora
+from src.impressoras import Impressoras
 
 
-def executar_lotes(lotes, parar, atualizar):
+def executar_lotes(lotes, parar, atualizar, impressora=None):
     from main import processar_ordem
     from src.handle_app import inicia_app, preencher_dados_fixos
 
@@ -23,7 +23,7 @@ def executar_lotes(lotes, parar, atualizar):
                 return
             atualizar('atual', numero, lote['setor'])
             # Uma falha pode ocorrer após o envio: não repetir impressão automaticamente.
-            processar_ordem(app, campos, numero, max_tentativas=1)
+            processar_ordem(app, campos, numero, max_tentativas=1, impressora=impressora)
             atualizar('enviada', numero, lote['setor'])
 
 
@@ -32,11 +32,14 @@ class ConflitoExecucao(RuntimeError):
 
 
 class EstadoImpressao:
-    def __init__(self, executor=executar_lotes):
+    def __init__(self, executor=executar_lotes, impressoras=None):
         self.trava = Lock()
         self.parar = Event()
         self.worker = None
         self.executor = executor
+        self.impressoras = impressoras if impressoras is not None else Impressoras()
+        self.impressora_lote = ''
+        self.uso_registrado = False
         self.encerrando = False
         self.dados = {
             'fase': 'pronto', 'mensagem': 'Pronto para conferir as OPs.',
@@ -47,18 +50,32 @@ class EstadoImpressao:
         with self.trava:
             dados = dict(self.dados, atividade=list(self.dados['atividade']),
                          ocupado=self.worker is not None and self.worker.is_alive())
-        try:
-            dados['impressora'] = obter_caminho_impressora()
-        except RuntimeError:
-            dados['impressora'] = ''
+            dados.update(self.impressoras.situacao())
         return dados
+
+    def listar_impressoras(self):
+        with self.trava:
+            self._exigir_disponivel()
+            return dict(self.impressoras.atualizar(), impressoras=list(self.impressoras.nomes))
+
+    def _exigir_disponivel(self):
+        if self.encerrando or (self.worker is not None and self.worker.is_alive()):
+            raise ConflitoExecucao('Aguarde o término da execução atual.')
+
+    def selecionar_impressora(self, nome):
+        with self.trava:
+            self._exigir_disponivel()
+            self.impressoras.selecionar(nome)
 
     def iniciar(self, entrada):
         lotes = montar_lotes(entrada)
-        obter_caminho_impressora()
         with self.trava:
-            if self.encerrando or (self.worker is not None and self.worker.is_alive()):
-                raise ConflitoExecucao('Aguarde o término da execução atual.')
+            self._exigir_disponivel()
+            nome = self.impressoras.validar(entrada.get('impressora'))
+            if nome != self.impressoras.selecionada:
+                raise ConflitoExecucao('A impressora foi alterada em outra aba. Confira a impressora selecionada antes de imprimir.')
+            self.impressora_lote = nome
+            self.uso_registrado = False
             self.parar.clear()
             self.dados = {
                 'fase': 'imprimindo', 'mensagem': 'Conectando ao Sisplan…',
@@ -73,6 +90,9 @@ class EstadoImpressao:
             self.dados.update(atual=numero, setor=setor)
             if evento == 'enviada':
                 self.dados['enviadas'] += 1
+                if not self.uso_registrado:
+                    self.uso_registrado = True
+                    self.impressoras.registrar_uso(self.impressora_lote)
                 self.dados['atividade'].append(f'OP {numero} · setor {setor} · enviada para impressão')
                 self.dados['atividade'] = self.dados['atividade'][-50:]
             else:
@@ -80,7 +100,7 @@ class EstadoImpressao:
 
     def _executar(self, lotes):
         try:
-            self.executor(lotes, self.parar, self._atualizar)
+            self.executor(lotes, self.parar, self._atualizar, self.impressora_lote)
         except Exception as erro:
             logging.exception('Falha na impressão de OPs')
             with self.trava:

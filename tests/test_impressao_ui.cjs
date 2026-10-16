@@ -6,16 +6,18 @@ const caminho = require('node:path');
 
 function painel() {
   let alteracoes = 0, leitura, recusarLeitura;
-  const requisicoes = [], eventos = {}, respostasConfirmacao = [];
+  const requisicoes = [], eventos = {}, respostasConfirmacao = [], respostas = new Map();
   class Elemento {
     constructor() { this.children = []; this.dataset = {}; this.value = ''; this.classList = {toggle() {}}; }
     set textContent(valor) { this.texto = valor; alteracoes++; }
     get textContent() { return this.texto; }
     append(...filhos) { this.children.push(...filhos); alteracoes++; }
-    replaceChildren(...filhos) { this.children = filhos; alteracoes++; }
+    replaceChildren(...filhos) { this.children = filhos; this.value = ''; alteracoes++; }
     setAttribute() {}
     addEventListener() {}
     focus() {}
+    showModal() { this.open = true; }
+    close() { this.open = false; }
     querySelectorAll() { return this.children.flatMap(filho => filho.tag === 'input' ? [filho] : filho.querySelectorAll()); }
   }
   const elementos = new Map();
@@ -39,12 +41,16 @@ function painel() {
         opcoes.signal.addEventListener('abort', () => recusarLeitura?.(Error('Cancelado')));
         return {ok: true, body: {getReader: () => ({read: () => new Promise((resolve, reject) => { leitura = resolve; recusarLeitura = reject; })})}};
       }
+      if (respostas.has(url)) return respostas.get(url);
+      if (url === '/api/impressoras') return {ok: true, json: async () => ({impressoras: ['Fila sintética', 'EPSON'], impressora: estado.impressora})};
+      if (url === '/api/impressora') estado.impressora = JSON.parse(opcoes.body).impressora;
+      if (url === '/api/conferir') return {ok: true, json: async () => ({lotes: [{setor: '10', ordens: ['000001']}], total: 1})};
       return {ok: true, json: async () => estado};
     }
   };
   vm.runInNewContext(fs.readFileSync(caminho.join(__dirname, '../src/impressao.js'), 'utf8'), sandbox);
   return {
-    eventos, requisicoes, respostasConfirmacao, obter, estado,
+    eventos, requisicoes, respostasConfirmacao, respostas, obter, estado,
     alteracoes: () => alteracoes,
     enviar: mensagem => leitura({value: new TextEncoder().encode(mensagem), done: false})
   };
@@ -109,4 +115,54 @@ test('Encerrar pede confirmação e dispensa um segundo aviso ao fechar a aba', 
   let impediu = false;
   ui.eventos.beforeunload({preventDefault() { impediu = true; }});
   assert.equal(impediu, false);
+});
+
+test('seletor lista filas ao abrir, permite atualizar e confirma a impressora escolhida', async () => {
+  const ui = painel(); await avancar();
+  ui.enviar(`data: ${JSON.stringify(ui.estado)}\n\n`); await avancar();
+  await ui.obter('selecionar-impressora').onclick();
+  assert.equal(ui.obter('dialogo-impressora').open, true);
+  assert.deepEqual(ui.obter('lista-impressoras').children.map(item => item.textContent), ['Fila sintética', 'EPSON']);
+  assert.equal(ui.obter('lista-impressoras').value, 'Fila sintética');
+  ui.obter('lista-impressoras').value = 'EPSON';
+  ui.obter('lista-impressoras').onchange();
+  await ui.obter('atualizar-impressoras').onclick();
+  assert.equal(ui.obter('lista-impressoras').value, 'EPSON');
+  await ui.obter('confirmar-impressora').onclick();
+  assert.equal(ui.requisicoes.at(-1).url, '/api/impressora');
+  assert.equal(JSON.parse(ui.requisicoes.at(-1).opcoes.body).impressora, 'EPSON');
+  assert.equal(ui.obter('dialogo-impressora').open, false);
+  assert.equal(ui.obter('impressora').textContent, 'Impressora: EPSON');
+  assert.equal(ui.requisicoes.some(item => item.url === '/api/iniciar'), false);
+  ui.eventos.pagehide();
+});
+
+test('lista vazia e falha de consulta bloqueiam confirmação e permitem tentar novamente', async () => {
+  const ui = painel(); await avancar();
+  ui.enviar(`data: ${JSON.stringify(ui.estado)}\n\n`); await avancar();
+  ui.respostas.set('/api/impressoras', {ok: true, json: async () => ({impressoras: [], impressora: '', aviso_impressora: 'Nenhuma impressora instalada.'})});
+  await ui.obter('selecionar-impressora').onclick();
+  assert.equal(ui.obter('confirmar-impressora').disabled, true);
+  assert.equal(ui.obter('aviso-lista-impressoras').textContent, 'Nenhuma impressora instalada.');
+  ui.respostas.set('/api/impressoras', {ok: false, json: async () => ({erro: 'Erro sintético'})});
+  await ui.obter('atualizar-impressoras').onclick();
+  assert.equal(ui.obter('erro-impressora').textContent, 'Erro sintético');
+  assert.equal(ui.obter('confirmar-impressora').disabled, true);
+  assert.equal(ui.obter('atualizar-impressoras').disabled, false);
+  ui.eventos.pagehide();
+});
+
+test('início inclui a impressora exibida e bloqueia troca durante o lote', async () => {
+  const ui = painel(); await avancar();
+  ui.enviar(`data: ${JSON.stringify(ui.estado)}\n\n`); await avancar();
+  await ui.obter('formulario').onsubmit({preventDefault() {}});
+  await ui.obter('imprimir').onclick();
+  assert.equal(ui.requisicoes.at(-1).url, '/api/iniciar');
+  assert.equal(JSON.parse(ui.requisicoes.at(-1).opcoes.body).impressora, 'Fila sintética');
+  ui.enviar(`data: ${JSON.stringify({...ui.estado, ocupado: true, fase: 'imprimindo'})}\n\n`); await avancar();
+  assert.equal(ui.obter('selecionar-impressora').disabled, true);
+  const quantidade = ui.requisicoes.length;
+  await ui.obter('selecionar-impressora').onclick();
+  assert.equal(ui.requisicoes.length, quantidade);
+  ui.eventos.pagehide();
 });

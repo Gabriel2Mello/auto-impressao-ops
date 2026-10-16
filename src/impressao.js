@@ -12,6 +12,10 @@ function atualizarBotoes() {
   $('conferir').disabled = ocupado || pendente || !online || encerrado;
   $('imprimir').disabled = !conferido || ocupado || pendente || !online || !impressora || encerrado;
   $('parar').hidden = !ocupado;
+  $('selecionar-impressora').disabled = ocupado || pendente || !online || encerrado;
+  $('atualizar-impressoras').disabled = ocupado || pendente || !online || encerrado;
+  $('lista-impressoras').disabled = ocupado || pendente || !online || encerrado;
+  $('confirmar-impressora').disabled = ocupado || pendente || !online || encerrado || !$('lista-impressoras').value;
   document.querySelectorAll('[data-modo]').forEach(botao => { botao.disabled = ocupado || pendente || encerrado; });
 }
 function invalidar() {
@@ -67,13 +71,53 @@ function mostrarEstado(estado) {
   $('ordem-atual').textContent = estado.atual ? `Última OP em processamento: ${estado.atual} · setor ${estado.setor}` : 'Informe as ordens e confira o lote antes de imprimir.';
   $('enviadas').textContent = estado.enviadas; $('total').textContent = estado.total;
   $('progresso').max = estado.total || 1; $('progresso').value = estado.enviadas;
-  $('impressora').textContent = impressora ? `Impressora: ${impressora}` : 'Impressora não configurada. Defina IMPRESSORA_OP antes de iniciar o programa.';
+  $('impressora').textContent = impressora ? `Impressora: ${impressora}` : 'Nenhuma impressora selecionada. Clique em Selecionar impressora.';
+  $('aviso-impressora').textContent = estado.aviso_impressora || '';
   $('atividade').replaceChildren();
   for (const mensagem of estado.atividade.length ? estado.atividade : ['Nenhuma OP enviada nesta execução.']) {
     const item = document.createElement('li'); item.textContent = mensagem; $('atividade').append(item);
   }
   atualizarBotoes();
 }
+async function carregarImpressoras() {
+  if (pendente || ocupado || encerrado || !online) return;
+  const anterior = $('lista-impressoras').value;
+  pendente = true; atualizarBotoes();
+  $('erro-impressora').textContent = '';
+  $('aviso-lista-impressoras').textContent = 'Consultando as impressoras do Windows…';
+  $('lista-impressoras').replaceChildren();
+  try {
+    const resultado = await api('/api/impressoras');
+    for (const nome of resultado.impressoras) {
+      const opcao = document.createElement('option');
+      opcao.value = nome; opcao.textContent = nome; opcao.title = nome;
+      $('lista-impressoras').append(opcao);
+    }
+    $('lista-impressoras').value = resultado.impressoras.includes(anterior) ? anterior : resultado.impressora || '';
+    $('aviso-lista-impressoras').textContent = resultado.aviso_impressora || 'As filas virtuais podem solicitar um local para salvar o arquivo.';
+  } catch (erro) {
+    $('erro-impressora').textContent = erro.message;
+    $('aviso-lista-impressoras').textContent = 'Use Atualizar lista para tentar novamente.';
+  } finally { pendente = false; atualizarBotoes(); }
+}
+$('selecionar-impressora').onclick = async () => {
+  if (ocupado || pendente || encerrado || !online) return;
+  $('lista-impressoras').replaceChildren();
+  $('dialogo-impressora').showModal();
+  await carregarImpressoras();
+};
+$('atualizar-impressoras').onclick = carregarImpressoras;
+$('cancelar-impressora').onclick = () => $('dialogo-impressora').close();
+$('lista-impressoras').onchange = atualizarBotoes;
+$('confirmar-impressora').onclick = async () => {
+  if (ocupado || pendente || encerrado || !online || !$('lista-impressoras').value) return;
+  pendente = true; atualizarBotoes(); $('erro-impressora').textContent = '';
+  try {
+    mostrarEstado(await api('/api/impressora', {impressora: $('lista-impressoras').value}));
+    $('dialogo-impressora').close();
+  } catch (erro) { $('erro-impressora').textContent = erro.message; }
+  finally { pendente = false; atualizarBotoes(); }
+};
 async function acompanhar() {
   if (encerrado || saindo) return;
   try {
@@ -123,7 +167,7 @@ $('formulario').onsubmit = async evento => {
 $('imprimir').onclick = async () => {
   if (!conferido || pendente || ocupado || encerrado) return;
   pendente = true; atualizarBotoes(); $('mensagem').textContent = '';
-  try { const estado = await api('/api/iniciar', conferido); conferido = null; mostrarEstado(estado); }
+  try { const estado = await api('/api/iniciar', {...conferido, impressora}); conferido = null; mostrarEstado(estado); }
   catch (erro) { conferido = null; $('mensagem').textContent = erro.message + ' Confira o andamento antes de preparar outro lote.'; }
   finally { pendente = false; atualizarBotoes(); }
 };

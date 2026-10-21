@@ -1,6 +1,8 @@
 """Uma execução por vez, com parada entre OPs e integração Windows tardia."""
 
 import logging
+
+from metricas_nunes import registrar_evento
 from threading import Event, Lock, Thread
 
 from src.entrada_web import montar_lotes
@@ -23,7 +25,9 @@ def executar_lotes(lotes, parar, atualizar, impressora=None):
                 return
             atualizar('atual', numero, lote['setor'])
             # Uma falha pode ocorrer após o envio: não repetir impressão automaticamente.
-            processar_ordem(app, campos, numero, max_tentativas=1, impressora=impressora)
+            processar_ordem(app, campos, numero, impressora=impressora)
+            registrar_evento('op_enviada', f"{str(numero).zfill(6)}:{lote['setor']}",
+                             str(numero).zfill(6), empresa='FILIAL', setor=lote['setor'])
             atualizar('enviada', numero, lote['setor'])
 
 

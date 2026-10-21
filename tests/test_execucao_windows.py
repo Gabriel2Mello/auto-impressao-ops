@@ -38,7 +38,7 @@ class TestAdaptadorWindows(unittest.TestCase):
             executar_lotes(lotes, Event(), atualizar, impressora='Impressora do lote')
         self.assertEqual([chamada.args for chamada in preencher.call_args_list], [('campos', '20'), ('campos', '10')])
         self.assertEqual([chamada.args[2] for chamada in processar.call_args_list], ['000001', '000002', '000003'])
-        self.assertTrue(all(chamada.kwargs == {'max_tentativas': 1, 'impressora': 'Impressora do lote'} for chamada in processar.call_args_list))
+        self.assertTrue(all(chamada.kwargs == {'impressora': 'Impressora do lote'} for chamada in processar.call_args_list))
         self.assertEqual(atualizar.call_count, 6)
 
     def test_parada_durante_op_nao_inicia_proxima(self):

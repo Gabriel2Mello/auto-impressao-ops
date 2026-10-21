@@ -1,5 +1,7 @@
 from time import sleep, perf_counter
 
+from metricas_nunes import registrar_evento
+
 from pywinauto.keyboard import send_keys
 
 from src.handle_app import (
@@ -14,43 +16,40 @@ from src.handle_app import (
 from src.utils import obter_lotes
 
 MIN_SLEEP_SECONDS = 1
-MAX_TENTATIVAS = 2
 MODO_ENTRADA = 'arquivo' # 'arquivo', 'intervalos'
 
 
-def processar_ordem(app, campos, numero, max_tentativas=MAX_TENTATIVAS, impressora=None):
-    for tentativa in range(1, max_tentativas + 1):
-        mensagem = '\nConsultando' if tentativa == 1 else 'Tentando novamente'
-        print(f'{mensagem}: {numero}')
+def processar_ordem(app, campos, numero, impressora=None):
+    print(f'\nConsultando: {numero}')
 
-        try:
-            campo_numero = campos['numero']
-            aguardar(campo_numero).set_text(numero)
+    try:
+        campo_numero = campos['numero']
+        aguardar(campo_numero).set_text(numero)
 
-            send_keys(ATALHOS['consultar'])
-            sleep(MIN_SLEEP_SECONDS)
+        send_keys(ATALHOS['consultar'])
+        sleep(MIN_SLEEP_SECONDS)
 
-            print('Imprimindo')
-            send_keys(ATALHOS['imprimir'])
-            sleep(MIN_SLEEP_SECONDS)
+        print('Imprimindo')
+        send_keys(ATALHOS['imprimir'])
+        sleep(MIN_SLEEP_SECONDS)
 
-            if not handle_mini_menu(app):
-                raise RuntimeError('Falha no mini menu de impressão.')
+        if not handle_mini_menu(app):
+            raise RuntimeError('Falha no mini menu de impressão.')
 
-            if not handle_menu_impressao(app, impressora=impressora):
-                raise RuntimeError('Falha no menu de impressão.')
+        if not handle_menu_impressao(app, impressora=impressora):
+            raise RuntimeError('Falha no menu de impressão.')
 
-            return True
+        return True
 
-        except Exception as e:
-            fecha_menu_impressao(app)
-
-            if tentativa < max_tentativas:
-                sleep(MIN_SLEEP_SECONDS)
-            else:
-                raise RuntimeError(f'Falha no fluxo de impressão da OP {numero}: {e}') from e
-
-    raise RuntimeError('Alerta: Falha no fluxo de impressão.')
+    except Exception as e:
+        fecha_menu_impressao(app)
+        # O diálogo pode falhar depois do envio; a OP não deve ser repetida.
+        raise RuntimeError(
+            f'Falha no fluxo de impressão da OP {numero}: {e} '
+            'Execução interrompida, sem repetição automática. '
+            f'Confira a OP {numero} na fila da impressora e no papel '
+            'antes de iniciar outra execução.'
+        ) from e
 
 
 def processar_lote(app, campos, lote):
@@ -61,6 +60,8 @@ def processar_lote(app, campos, lote):
 
     for numero in lote['ordens']:
         processar_ordem(app, campos, numero)
+        registrar_evento('op_enviada', f'{str(numero).zfill(6)}:{setor}', str(numero).zfill(6),
+                         empresa='FILIAL', setor=str(setor))
 
     print(f'Setor {setor} concluído.')
 
@@ -73,15 +74,17 @@ def main():
 
         if not lotes:
             print('Nenhuma ondem informada.')
-            return
+            return 0
 
         app, campos = inicia_app()
 
         for lote in lotes:
             processar_lote(app, campos, lote)
+        return 0
 
     except Exception as e:
         print(f'\nERRO: {e}')
+        return 1
     finally:
         elapsed_time = perf_counter() - start_time
 

@@ -34,11 +34,11 @@ A confirmação de saída usa o aviso padrão do navegador, também exibido ao r
 
 O acompanhamento usa uma conexão contínua que envia o estado apenas quando há mudanças. Quando o painel está parado, não há consultas periódicas de estado nem redesenho da tela. Mensagens internas mantêm a conexão aberta para detectar o fechamento da aba, sem alterar a interface.
 
-As OPs recebem no mínimo seis dígitos. Repetições da mesma OP no mesmo setor são eliminadas na execução; uma mesma OP em setores diferentes permanece. Limite: 5.000 OPs por execução e 100 intervalos. A conferência exibe até 100 números de cada lote e informa quantos não estão visíveis; o lote completo é processado. A atividade mantém os últimos 50 envios da execução, em memória, sem histórico persistente ou retomada automática.
+As OPs recebem no mínimo seis dígitos. Repetições da mesma OP no mesmo setor são eliminadas na execução; uma mesma OP em setores diferentes permanece. Limite: 5.000 OPs por execução e 100 intervalos. A conferência exibe até 100 números de cada lote e informa quantos não estão visíveis; o lote completo é processado. A atividade mantém os últimos 50 envios da execução em memória, sem retomada automática. O histórico acumulado de métricas fica separado, conforme a seção Estatísticas no Hub Nunes.
 
-Durante a execução, deixe teclado e mouse livres para a automação. O painel utiliza a sequência de campos e atalhos existente em `main.py` e `src/handle_app.py`. Na interface web, cada OP tem **uma tentativa**: uma falha pode acontecer após o envio e interrompe o lote sem repetição automática. Confira a última OP e o papel antes de preparar outra execução. O contador indica envios concluídos pelo fluxo de automação; não confirma a saída física. Erros técnicos ficam em `impressao.log`.
+Durante a execução, deixe teclado e mouse livres para a automação. O painel utiliza a sequência de campos e atalhos existente em `main.py` e `src/handle_app.py`. Na interface web e no console, cada OP tem **uma tentativa**: uma falha pode acontecer após o envio e interrompe o lote sem repetição automática. Confira a última OP e o papel antes de preparar outra execução. O contador indica envios concluídos pelo fluxo de automação; não confirma a saída física. Erros técnicos ficam em `impressao.log`.
 
-O modo de console mantém `MODO_ENTRADA` em `main.py` e a leitura de `ordem_producao.txt` no modo `arquivo`.
+O modo de console mantém `MODO_ENTRADA` em `main.py` e a leitura de `ordem_producao.txt` no modo `arquivo`. Desde a E2 (20/10/2026), qualquer falha interrompe também as OPs e os setores seguintes, identifica a OP afetada e orienta conferir a fila da impressora e o papel antes de iniciar outra execução. O console retorna código 1 em caso de falha e 0 ao concluir ou quando não há OPs, permitindo ao contrato do Hub registrar o erro. Não há repetição automática nem parâmetro para habilitá-la no executor compartilhado.
 
 ## Visual e implementação
 
@@ -65,3 +65,10 @@ node --test tests/test_impressao_ui.cjs
 Os testes usam entradas sintéticas, executor falso e HTTP local para conferir regras, concorrência, parada, falhas e proteção da API. Não imprimem nem controlam o Sisplan. A validação real de uma impressão continua separada dos testes.
 
 Criado por Gabriel Mello · [g2mello](https://github.com/Gabriel2Mello)
+
+
+## Estatísticas no Hub Nunes
+
+O histórico conta o primeiro envio concluído de cada OP/setor; reenvios do mesmo par não aumentam o total. Uma OP em outro setor conta um novo envio. O indicador não comprova a saída física do papel. A atividade da execução continua em memória.
+
+O registro funciona na interface web e no console, mesmo com o hub fechado. O módulo `metricas_nunes.py` é distribuído a partir do Hub Nunes; seu README documenta armazenamento, recuperação, filtros e exportação. Feche e reabra esta ferramenta após atualizar. O histórico começa com esta versão e não importa operações anteriores. Falhas na estatística não repetem nem interrompem operações concluídas; uma fila local recupera gravações transitórias e falhas de persistência são registradas no log. Antes de rodar a suíte completa, use um terminal exclusivo de testes e configure NUNES_METRICAS_DADOS para uma pasta temporária; o README do Hub Nunes contém o comando de isolamento.

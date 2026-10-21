@@ -7,6 +7,7 @@ from threading import Event, Thread
 from unittest.mock import patch
 
 from src.entrada_web import montar_lotes
+from src.diario_impressao import DiarioImpressao
 from src.interface_web import criar_servidor
 from src.impressoras import Impressoras
 from src.servico_impressao import ConflitoExecucao, EstadoImpressao
@@ -47,6 +48,8 @@ class ComImpressoras(unittest.TestCase):
     def setUp(self):
         pasta = TemporaryDirectory()
         self.addCleanup(pasta.cleanup)
+        self.enterContext(patch.dict('os.environ', {'NUNES_OPS_DADOS': pasta.name}))
+        self.enterContext(patch('src.servico_impressao.DiarioImpressao', side_effect=lambda: DiarioImpressao(Path(pasta.name) / 'execucoes.sqlite3')))
         self.config = Path(pasta.name) / 'config.json'
         self.nomes = ['Impressora sintética', 'Outra impressora']
         fabrica = patch('src.servico_impressao.Impressoras', side_effect=lambda: Impressoras(
@@ -142,6 +145,7 @@ class TestExecucao(ComImpressoras):
     def test_falha_ao_salvar_nao_interrompe_lote(self):
         def executor(lotes, parar, atualizar, impressora):
             for numero in lotes[0]['ordens']:
+                atualizar('atual', numero, '10')
                 atualizar('enviada', numero, '10')
         estado = EstadoImpressao(executor)
         with patch('src.impressoras.os.replace', side_effect=PermissionError('sem permissão')), self.assertLogs(level='ERROR'):
@@ -181,6 +185,21 @@ class TestHttp(ComImpressoras):
 
     def autorizacao(self):
         return {'Authorization': f'Bearer {self.token}', 'Origin': self.origem, 'Content-Type': 'application/json'}
+
+    def test_recuperacao_exige_autorizacao_e_conferencia_e_nao_imprime(self):
+        execucao = self.estado.diario.iniciar([{'setor': '10', 'ordens': ['000001']}])
+        self.estado.diario.atualizar(execucao, '1', '10', 'envio_iniciado')
+        item = self.estado.diario.consultar()[0]
+        dados = {'id': item['id'], 'resultado': 'conferido_nao_enviado'}
+        resposta, _ = self.requisicao('POST', '/api/conferir-impressao', dados)
+        self.assertEqual(resposta.status, 403)
+        resposta, _ = self.requisicao('POST', '/api/conferir-impressao', dados, self.autorizacao())
+        self.assertEqual(resposta.status, 400)
+        resposta, conteudo = self.requisicao('POST', '/api/conferir-impressao',
+                                            dict(dados, conferi_fila_e_papel=True), self.autorizacao())
+        self.assertEqual(resposta.status, 200)
+        self.assertEqual(json.loads(conteudo)['historico'][0]['situacao'], 'conferido_nao_enviado')
+        self.assertIsNone(self.estado.worker)
 
     def test_conferencia_nao_inicia_automacao(self):
         resposta, conteudo = self.requisicao('POST', '/api/conferir', TestExecucao.entrada, self.autorizacao())

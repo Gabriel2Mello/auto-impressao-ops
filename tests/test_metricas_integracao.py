@@ -14,7 +14,7 @@ class TestMetricasIntegracao(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        ambiente = patch.dict(os.environ, {'NUNES_METRICAS_DADOS': self.temp.name})
+        ambiente = patch.dict(os.environ, {'NUNES_METRICAS_DADOS': self.temp.name, 'NUNES_OPS_DADOS': self.temp.name})
         ambiente.start(); self.addCleanup(ambiente.stop)
         self.lotes = [{'setor': '10', 'ordens': ['000001', '000002']}]
 

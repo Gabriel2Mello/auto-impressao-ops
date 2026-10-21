@@ -66,6 +66,12 @@
     <div class="tabela"><table><thead><tr><th scope="col">Setor</th><th scope="col">Quantidade</th><th scope="col">Ordens de produção</th></tr></thead><tbody id="lotes"><tr><td colspan="3" class="vazio">As OPs aparecerão aqui depois da conferência.</td></tr></tbody></table></div>
     <p class="dica nota">OPs repetidas no mesmo setor entram uma única vez no lote. As ordens recebem no mínimo seis dígitos, como no fluxo atual.</p>
   </section>
+  <section class="cartao conferencia" aria-labelledby="titulo-recuperacao">
+    <h2 id="titulo-recuperacao">Histórico e recuperação</h2>
+    <p class="dica">Último lote salvo neste computador e incertezas anteriores. Após uma interrupção, confira a fila e o papel antes de registrar o resultado. Nenhuma OP é retomada automaticamente.</p>
+    <div id="recuperacao"></div>
+    <p id="erro-recuperacao" class="mensagem" role="alert"></p>
+  </section>
   <section class="suporte"><details><summary>Atividade desta execução</summary><ol id="atividade"><li>Nenhuma OP enviada nesta execução.</li></ol></details><p id="conexao" class="dica" role="status">Conectando ao painel local…</p></section>
 </main>
 <dialog id="dialogo-impressora" aria-labelledby="titulo-impressora" aria-describedby="ajuda-impressora">

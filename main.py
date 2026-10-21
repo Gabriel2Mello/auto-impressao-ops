@@ -14,6 +14,7 @@ from src.handle_app import (
     aguardar,
 )
 from src.utils import obter_lotes
+from src.diario_impressao import DiarioImpressao
 
 MIN_SLEEP_SECONDS = 1
 MODO_ENTRADA = 'arquivo' # 'arquivo', 'intervalos'
@@ -52,14 +53,22 @@ def processar_ordem(app, campos, numero, impressora=None):
         ) from e
 
 
-def processar_lote(app, campos, lote):
+def processar_lote(app, campos, lote, diario=None, execucao=None):
+    diario = diario if diario is not None else DiarioImpressao()
+    execucao = execucao or diario.iniciar([lote])
     setor = lote['setor']
     preencher_dados_fixos(campos, setor)
 
     print(f'\nIniciando setor {setor}: {len(lote["ordens"])} ordens.')
 
     for numero in lote['ordens']:
-        processar_ordem(app, campos, numero)
+        diario.atualizar(execucao, numero, setor, 'envio_iniciado')
+        try:
+            processar_ordem(app, campos, numero)
+            diario.atualizar(execucao, numero, setor, 'concluido')
+        except Exception:
+            diario.interromper(execucao)
+            raise
         registrar_evento('op_enviada', f'{str(numero).zfill(6)}:{setor}', str(numero).zfill(6),
                          empresa='FILIAL', setor=str(setor))
 
@@ -76,10 +85,12 @@ def main():
             print('Nenhuma ondem informada.')
             return 0
 
+        diario = DiarioImpressao()
+        execucao = diario.iniciar(lotes)
         app, campos = inicia_app()
 
         for lote in lotes:
-            processar_lote(app, campos, lote)
+            processar_lote(app, campos, lote, diario, execucao)
         return 0
 
     except Exception as e:

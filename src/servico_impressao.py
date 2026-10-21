@@ -7,6 +7,7 @@ from threading import Event, Lock, Thread
 
 from src.entrada_web import montar_lotes
 from src.impressoras import Impressoras
+from src.diario_impressao import DiarioImpressao
 
 
 def executar_lotes(lotes, parar, atualizar, impressora=None):
@@ -26,9 +27,9 @@ def executar_lotes(lotes, parar, atualizar, impressora=None):
             atualizar('atual', numero, lote['setor'])
             # Uma falha pode ocorrer após o envio: não repetir impressão automaticamente.
             processar_ordem(app, campos, numero, impressora=impressora)
+            atualizar('enviada', numero, lote['setor'])
             registrar_evento('op_enviada', f"{str(numero).zfill(6)}:{lote['setor']}",
                              str(numero).zfill(6), empresa='FILIAL', setor=lote['setor'])
-            atualizar('enviada', numero, lote['setor'])
 
 
 class ConflitoExecucao(RuntimeError):
@@ -36,7 +37,9 @@ class ConflitoExecucao(RuntimeError):
 
 
 class EstadoImpressao:
-    def __init__(self, executor=executar_lotes, impressoras=None):
+    def __init__(self, executor=executar_lotes, impressoras=None, diario=None):
+        self.diario = diario if diario is not None else DiarioImpressao()
+        self.execucao = None
         self.trava = Lock()
         self.parar = Event()
         self.worker = None
@@ -55,6 +58,11 @@ class EstadoImpressao:
             dados = dict(self.dados, atividade=list(self.dados['atividade']),
                          ocupado=self.worker is not None and self.worker.is_alive())
             dados.update(self.impressoras.situacao())
+            dados['historico'] = self.diario.consultar()
+            incertas = sum(item['situacao'] in ('envio_iniciado', 'incerto') for item in dados['historico'])
+            if incertas and not dados['ocupado']:
+                dados.update(fase='erro', mensagem=f'Há {incertas} OP(s) com resultado incerto. '
+                             'Confira a fila e o papel em Histórico e recuperação antes de iniciar outro lote.')
         return dados
 
     def listar_impressoras(self):
@@ -78,6 +86,7 @@ class EstadoImpressao:
             nome = self.impressoras.validar(entrada.get('impressora'))
             if nome != self.impressoras.selecionada:
                 raise ConflitoExecucao('A impressora foi alterada em outra aba. Confira a impressora selecionada antes de imprimir.')
+            self.execucao = self.diario.iniciar(lotes, nome)
             self.impressora_lote = nome
             self.uso_registrado = False
             self.parar.clear()
@@ -89,8 +98,17 @@ class EstadoImpressao:
             self.worker = Thread(target=self._executar, args=(lotes,), daemon=False)
             self.worker.start()
 
+    def conferir_impressao(self, dados):
+        with self.trava:
+            self._exigir_disponivel()
+            if dados.get('conferi_fila_e_papel') is not True:
+                raise ValueError('Confirme a conferência da fila e do papel.')
+            self.diario.conferir(dados.get('id'), dados.get('resultado'))
+
     def _atualizar(self, evento, numero, setor):
         with self.trava:
+            self.diario.atualizar(self.execucao, numero, setor,
+                                  'concluido' if evento == 'enviada' else 'envio_iniciado')
             self.dados.update(atual=numero, setor=setor)
             if evento == 'enviada':
                 self.dados['enviadas'] += 1
@@ -107,6 +125,10 @@ class EstadoImpressao:
             self.executor(lotes, self.parar, self._atualizar, self.impressora_lote)
         except Exception as erro:
             logging.exception('Falha na impressão de OPs')
+            try:
+                self.diario.interromper(self.execucao)
+            except RuntimeError:
+                logging.exception('Falha ao registrar interrupção; o início persistido continua incerto')
             with self.trava:
                 self.dados.update(fase='erro', mensagem=f'{erro} Confira a última OP na impressora antes de iniciar outra execução.')
         else:

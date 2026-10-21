@@ -166,3 +166,22 @@ test('início inclui a impressora exibida e bloqueia troca durante o lote', asyn
   assert.equal(ui.requisicoes.length, quantidade);
   ui.eventos.pagehide();
 });
+
+test('incerteza persistida bloqueia impressão e só libera após conferência explícita', async () => {
+  const ui = painel(); await avancar();
+  ui.estado.historico = [{id: 'incerto-1', numero: '000123', setor: '10', situacao: 'envio_iniciado', impressora: 'Fila sintética', atualizado_em: '2026-10-21T10:00:00+00:00'}];
+  ui.enviar(`data: ${JSON.stringify(ui.estado)}\n\n`); await avancar();
+  await ui.obter('formulario').onsubmit({preventDefault() {}});
+  assert.equal(ui.obter('imprimir').disabled, true);
+  await ui.obter('imprimir').onclick();
+  assert.equal(ui.requisicoes.some(item => item.url === '/api/iniciar'), false);
+  const botao = ui.obter('recuperacao').children[0].children[1];
+  ui.respostasConfirmacao.push(false); await botao.onclick();
+  assert.equal(ui.requisicoes.some(item => item.url === '/api/conferir-impressao'), false);
+  ui.respostasConfirmacao.push(true); await botao.onclick();
+  const requisicao = ui.requisicoes.find(item => item.url === '/api/conferir-impressao');
+  assert.equal(JSON.parse(requisicao.opcoes.body).conferi_fila_e_papel, true);
+  assert.equal(JSON.parse(requisicao.opcoes.body).resultado, 'conferido_enviado');
+  assert.equal(ui.requisicoes.some(item => item.url === '/api/iniciar'), false);
+  ui.eventos.pagehide();
+});

@@ -22,10 +22,10 @@ def main(publicacao: IntegracaoLocal):
                             level=logging.INFO, encoding='utf-8',
                             format='%(asctime)s %(levelname)s %(message)s')
         servidor, estado = criar_servidor()
-    except OSError as erro:
+    except (OSError, RuntimeError) as erro:
         publicacao.registrar_falha(erro)
         informar_falha(f'Não foi possível abrir o painel. Verifique se o programa já está aberto '
-                       f'ou se a pasta permite gravar impressao.log.\n{erro}')
+                       f'ou se a pasta permite gravar o log e o diário de impressão.\n{erro}')
         return 1
     try:
         publicacao.publicar(servidor, servidor.encerrar,

@@ -34,7 +34,7 @@ A confirmação de saída usa o aviso padrão do navegador, também exibido ao r
 
 O acompanhamento usa uma conexão contínua que envia o estado apenas quando há mudanças. Quando o painel está parado, não há consultas periódicas de estado nem redesenho da tela. Mensagens internas mantêm a conexão aberta para detectar o fechamento da aba, sem alterar a interface.
 
-As OPs recebem no mínimo seis dígitos. Repetições da mesma OP no mesmo setor são eliminadas na execução; uma mesma OP em setores diferentes permanece. Limite: 5.000 OPs por execução e 100 intervalos. A conferência exibe até 100 números de cada lote e informa quantos não estão visíveis; o lote completo é processado. A atividade mantém os últimos 50 envios da execução em memória, sem retomada automática. O histórico acumulado de métricas fica separado, conforme a seção Estatísticas no Hub Nunes.
+As OPs recebem no mínimo seis dígitos. Repetições da mesma OP no mesmo setor são eliminadas na execução; uma mesma OP em setores diferentes permanece. Limite: 5.000 OPs por execução e 100 intervalos. A conferência exibe até 100 números de cada lote e informa quantos não estão visíveis; o lote completo é processado. A atividade mantém os últimos 50 envios da execução em memória. O diário persistente da E9 guarda o lote completo e as incertezas, sem retomada automática. O histórico acumulado de métricas fica separado, conforme a seção Estatísticas no Hub Nunes.
 
 Durante a execução, deixe teclado e mouse livres para a automação. O painel utiliza a sequência de campos e atalhos existente em `main.py` e `src/handle_app.py`. Na interface web e no console, cada OP tem **uma tentativa**: uma falha pode acontecer após o envio e interrompe o lote sem repetição automática. Confira a última OP e o papel antes de preparar outra execução. O contador indica envios concluídos pelo fluxo de automação; não confirma a saída física. Erros técnicos ficam em `impressao.log`.
 
@@ -69,6 +69,50 @@ Criado por Gabriel Mello · [g2mello](https://github.com/Gabriel2Mello)
 
 ## Estatísticas no Hub Nunes
 
-O histórico conta o primeiro envio concluído de cada OP/setor; reenvios do mesmo par não aumentam o total. Uma OP em outro setor conta um novo envio. O indicador não comprova a saída física do papel. A atividade da execução continua em memória.
+O histórico conta o primeiro envio concluído de cada OP/setor; reenvios do mesmo par não aumentam o total. Uma OP em outro setor conta um novo envio. O indicador não comprova a saída física do papel. A atividade da execução continua em memória; o diário operacional da E9 é separado das métricas.
 
 O registro funciona na interface web e no console, mesmo com o hub fechado. O módulo `metricas_nunes.py` é distribuído a partir do Hub Nunes; seu README documenta armazenamento, recuperação, filtros e exportação. Feche e reabra esta ferramenta após atualizar. O histórico começa com esta versão e não importa operações anteriores. Falhas na estatística não repetem nem interrompem operações concluídas; uma fila local recupera gravações transitórias e falhas de persistência são registradas no log. Antes de rodar a suíte completa, use um terminal exclusivo de testes e configure NUNES_METRICAS_DADOS para uma pasta temporária; o README do Hub Nunes contém o comando de isolamento.
+
+
+## Recuperação de impressão — E9, 21/10/2026
+
+Painel e console salvam o lote antes de trabalhar e registram o início antes
+de cada tentativa. O diário fica em `%LOCALAPPDATA%\Nunes\ImpressaoOPs\execucoes.sqlite3`;
+`NUNES_OPS_DADOS` permite escolher outra pasta, inclusive temporária para testes.
+Ele começa nesta versão e não importa métricas como comprovantes de impressão.
+
+**Histórico e recuperação** exibe o último lote inteiro e todas as incertezas
+anteriores, com OP, setor, impressora e horário. “Não iniciada” permanece
+distinta de “Envio concluído pelo fluxo” e “Incerto”. Um início sem conclusão,
+inclusive por término abrupto, bloqueia novos lotes antes de enviar outra OP.
+Falha ao salvar o início impede o envio; falha ao salvar a conclusão conserva
+a incerteza. Arquivo inválido ou indisponível bloqueia a operação, sem apagá-lo.
+
+Confira a fila **e o papel**. Use **Conferi: foi enviado** ou **Conferi: não foi
+enviado**, confirmando a decisão. A ação só registra a conferência manual;
+não imprime nem lança uma métrica. Após resolver as incertezas, prepare e
+confira um novo lote apenas com as OPs desejadas. Pendentes e concluídas não
+são reenviadas automaticamente. Uma nova impressão pelo botão é uma nova
+solicitação explícita; as métricas continuam deduplicadas por OP/setor.
+
+O responsável também pode consultar ou registrar a conferência pelo console:
+
+```powershell
+.\.venv\Scripts\python.exe recuperar_impressao.py
+.\.venv\Scripts\python.exe recuperar_impressao.py --id IDENTIFICADOR --resultado conferido_nao_enviado --conferi-fila-e-papel
+```
+
+O identificador vem da consulta. O outro resultado permitido é
+`conferido_enviado`. O contrato do Hub conserva a exclusão Sisplan também
+nesse comando. A conferência não é permitida com impressão em andamento.
+“Concluído pelo fluxo” continua sem provar saída física; uma marca manual
+também não produz recibo do spooler. Uma falha depois do envio e antes da
+conclusão pode exigir conferência mesmo quando o papel já saiu. O intervalo
+entre efeito e métrica permanece documentado no Hub como R06.
+
+Validação: 50 testes Python e oito JavaScript aprovados, incluindo falhas antes
+e depois do envio, API protegida, parada e persistência do lote além de 50 OPs.
+Um processo de teste terminou abruptamente e outro recuperou concluído,
+incerto e pendente. Prévia Edge verificada em claro/escuro a 360/1200 px.
+Somente dados sintéticos; nenhuma OP foi impressa. Reabra a ferramenta para
+carregar a atualização; executáveis anteriores precisam ser reconstruídos.

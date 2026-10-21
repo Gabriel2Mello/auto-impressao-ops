@@ -5,12 +5,13 @@ let modo = 'intervalos', conferido = null, ocupado = false, online = false, ence
 let numeroIntervalo = 0;
 const pagina = crypto.randomUUID();
 const presenca = new AbortController();
-let ultimoEstado = '', saindo = false;
+let ultimoEstado = '', saindo = false, historico = [];
 
 function atualizarBotoes() {
   $('campos').disabled = ocupado || pendente || encerrado;
   $('conferir').disabled = ocupado || pendente || !online || encerrado;
-  $('imprimir').disabled = !conferido || ocupado || pendente || !online || !impressora || encerrado;
+  $('imprimir').disabled = !conferido || ocupado || pendente || !online || !impressora || encerrado || historico.some(item => ['envio_iniciado', 'incerto'].includes(item.situacao));
+  document.querySelectorAll('[data-conferencia]').forEach(botao => { botao.disabled = ocupado || pendente || !online || encerrado; });
   $('parar').hidden = !ocupado;
   $('selecionar-impressora').disabled = ocupado || pendente || !online || encerrado;
   $('atualizar-impressoras').disabled = ocupado || pendente || !online || encerrado;
@@ -64,6 +65,8 @@ function mostrarEstado(estado) {
   if (assinatura === ultimoEstado) return;
   ultimoEstado = assinatura;
   ocupado = estado.ocupado; impressora = estado.impressora;
+  historico = estado.historico || [];
+  mostrarHistorico();
   const fases = {pronto: 'Pronto', imprimindo: 'Em andamento', concluido: 'Concluído', interrompido: 'Interrompido', erro: 'Conferir impressão'};
   $('fase').textContent = fases[estado.fase] || estado.fase;
   $('fase').classList.toggle('erro', estado.fase === 'erro');
@@ -78,6 +81,35 @@ function mostrarEstado(estado) {
     const item = document.createElement('li'); item.textContent = mensagem; $('atividade').append(item);
   }
   atualizarBotoes();
+}
+function mostrarHistorico() {
+  $('recuperacao').replaceChildren();
+  const rotulos = {pendente: 'Não iniciada', envio_iniciado: ocupado ? 'Envio em andamento' : 'Incerto: conferir fila e papel', incerto: 'Incerto: conferir fila e papel', concluido: 'Envio concluído pelo fluxo', conferido_enviado: 'Envio confirmado manualmente', conferido_nao_enviado: 'Não enviado: conferido manualmente'};
+  if (!historico.length) { $('recuperacao').textContent = 'Nenhum lote salvo nesta versão.'; return; }
+  for (const registro of historico) {
+    const linha = document.createElement('div'); linha.className = 'registro-recuperacao';
+    const descricao = document.createElement('p');
+    descricao.textContent = `OP ${registro.numero} · setor ${registro.setor} · ${rotulos[registro.situacao] || registro.situacao} · ${registro.impressora || 'Impressora do console'} · ${new Date(registro.atualizado_em).toLocaleString('pt-BR')}`;
+    linha.append(descricao);
+    if (['envio_iniciado', 'incerto'].includes(registro.situacao)) {
+      for (const [resultado, texto] of [['conferido_enviado', 'Conferi: foi enviado'], ['conferido_nao_enviado', 'Conferi: não foi enviado']]) {
+        const botao = document.createElement('button'); botao.type = 'button'; botao.textContent = texto;
+        botao.dataset.conferencia = registro.id;
+        botao.onclick = async () => {
+          if (ocupado || pendente || !online || encerrado) return;
+          if (!confirm(`Você conferiu a fila e o papel da OP ${registro.numero}, setor ${registro.setor}? ${texto}. Esta ação registra sua conferência e não imprime.`)) return;
+          pendente = true; atualizarBotoes(); $('erro-recuperacao').textContent = '';
+          try {
+            mostrarEstado(await api('/api/conferir-impressao', {id: registro.id, resultado, conferi_fila_e_papel: true}));
+            invalidar();
+          } catch (erro) { $('erro-recuperacao').textContent = erro.message; }
+          finally { pendente = false; atualizarBotoes(); }
+        };
+        linha.append(botao);
+      }
+    }
+    $('recuperacao').append(linha);
+  }
 }
 async function carregarImpressoras() {
   if (pendente || ocupado || encerrado || !online) return;
@@ -165,7 +197,7 @@ $('formulario').onsubmit = async evento => {
   finally { pendente = false; atualizarBotoes(); }
 };
 $('imprimir').onclick = async () => {
-  if (!conferido || pendente || ocupado || encerrado) return;
+  if (!conferido || pendente || ocupado || encerrado || historico.some(item => ['envio_iniciado', 'incerto'].includes(item.situacao))) return;
   pendente = true; atualizarBotoes(); $('mensagem').textContent = '';
   try { const estado = await api('/api/iniciar', {...conferido, impressora}); conferido = null; mostrarEstado(estado); }
   catch (erro) { conferido = null; $('mensagem').textContent = erro.message + ' Confira o andamento antes de preparar outro lote.'; }

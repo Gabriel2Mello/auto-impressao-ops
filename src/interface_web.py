@@ -205,6 +205,8 @@ def criar_servidor(estado=None, porta=8766):
                     return
                 if caminho == '/api/iniciar':
                     estado.iniciar(dados)
+                elif caminho == '/api/conferir-impressao':
+                    estado.conferir_impressao(dados)
                 elif caminho == '/api/impressora':
                     estado.selecionar_impressora(dados.get('impressora'))
                 elif caminho == '/api/parar':

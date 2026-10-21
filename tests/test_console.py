@@ -1,6 +1,7 @@
 """Regressões de envio incerto; todas as ações de tela são simuladas."""
 
 from contextlib import ExitStack
+from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import Mock, call, patch
 
@@ -10,6 +11,8 @@ import main
 class TestConsole(unittest.TestCase):
     def setUp(self):
         contexto = self.enterContext(ExitStack())
+        pasta = self.enterContext(TemporaryDirectory())
+        contexto.enter_context(patch.dict('os.environ', {'NUNES_OPS_DADOS': pasta}))
         self.app = Mock()
         self.campos = {'numero': Mock()}
         self.combo = Mock()

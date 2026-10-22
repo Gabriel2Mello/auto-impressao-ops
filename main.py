@@ -15,6 +15,7 @@ from src.handle_app import (
 )
 from src.utils import obter_lotes
 from src.diario_impressao import DiarioImpressao
+from src.impressoras import Impressoras
 
 MIN_SLEEP_SECONDS = 1
 MODO_ENTRADA = 'arquivo' # 'arquivo', 'intervalos'
@@ -53,9 +54,9 @@ def processar_ordem(app, campos, numero, impressora=None):
         ) from e
 
 
-def processar_lote(app, campos, lote, diario=None, execucao=None):
+def processar_lote(app, campos, lote, diario=None, execucao=None, *, impressora, ao_enviar=None):
     diario = diario if diario is not None else DiarioImpressao()
-    execucao = execucao or diario.iniciar([lote])
+    execucao = execucao or diario.iniciar([lote], impressora)
     setor = lote['setor']
     preencher_dados_fixos(campos, setor)
 
@@ -64,11 +65,13 @@ def processar_lote(app, campos, lote, diario=None, execucao=None):
     for numero in lote['ordens']:
         diario.atualizar(execucao, numero, setor, 'envio_iniciado')
         try:
-            processar_ordem(app, campos, numero)
+            processar_ordem(app, campos, numero, impressora=impressora)
             diario.atualizar(execucao, numero, setor, 'concluido')
         except Exception:
             diario.interromper(execucao)
             raise
+        if ao_enviar is not None:
+            ao_enviar()
         registrar_evento('op_enviada', f'{str(numero).zfill(6)}:{setor}', str(numero).zfill(6),
                          empresa='FILIAL', setor=str(setor))
 
@@ -85,12 +88,28 @@ def main():
             print('Nenhuma ondem informada.')
             return 0
 
+        impressoras = Impressoras()
+        if impressoras.aviso_preferencia:
+            print(f'Aviso: {impressoras.aviso_preferencia}')
+        impressora = impressoras.validar(impressoras.selecionada)
+        print(f'Impressora do lote: {impressora}')
+
+        uso_registrado = False
+        def registrar_primeiro_uso():
+            nonlocal uso_registrado
+            if not uso_registrado:
+                uso_registrado = True
+                impressoras.registrar_uso(impressora)
+                if impressoras.aviso_preferencia:
+                    print(f'Aviso: {impressoras.aviso_preferencia}')
+
         diario = DiarioImpressao()
-        execucao = diario.iniciar(lotes)
+        execucao = diario.iniciar(lotes, impressora)
         app, campos = inicia_app()
 
         for lote in lotes:
-            processar_lote(app, campos, lote, diario, execucao)
+            processar_lote(app, campos, lote, diario, execucao,
+                          impressora=impressora, ao_enviar=registrar_primeiro_uso)
         return 0
 
     except Exception as e:
@@ -106,4 +125,3 @@ def main():
 if __name__ == '__main__':
     from integracao_hub import executar_console
     raise SystemExit(executar_console('impressao-ops', 'Impressão de OPs', main))
-

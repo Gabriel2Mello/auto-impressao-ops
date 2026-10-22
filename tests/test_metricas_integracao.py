@@ -34,9 +34,10 @@ class TestMetricasIntegracao(unittest.TestCase):
              patch('src.handle_app.preencher_dados_fixos'), \
              patch('main.preencher_dados_fixos'), patch('main.processar_ordem', return_value=True):
             executar_lotes(self.lotes, Event(), Mock(), 'Impressora sintética')
-            main.processar_lote(None, {}, self.lotes[0])
+            main.processar_lote(None, {}, self.lotes[0], impressora='Impressora sintética')
             self.assertEqual(self.total(), 2)
-            main.processar_lote(None, {}, {'setor': '20', 'ordens': ['000001']})
+            main.processar_lote(None, {}, {'setor': '20', 'ordens': ['000001']},
+                                impressora='Impressora sintética')
             self.assertEqual(self.total(), 3)
 
     def test_parada_antes_de_iniciar_nao_registra(self):

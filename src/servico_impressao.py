@@ -1,6 +1,7 @@
 """Uma execução por vez, com parada entre OPs e integração Windows tardia."""
 
 import logging
+from contextlib import nullcontext
 
 from metricas_nunes import registrar_evento
 from threading import Event, Lock, Thread
@@ -37,14 +38,16 @@ class ConflitoExecucao(RuntimeError):
 
 
 class EstadoImpressao:
-    def __init__(self, executor=executar_lotes, impressoras=None, diario=None):
-        self.diario = diario if diario is not None else DiarioImpressao()
+    def __init__(self, executor=executar_lotes, impressoras=None, diario=None, medidor_abertura=None):
+        with medidor_abertura.etapa('diario_local') if medidor_abertura is not None else nullcontext():
+            self.diario = diario if diario is not None else DiarioImpressao()
         self.execucao = None
         self.trava = Lock()
         self.parar = Event()
         self.worker = None
         self.executor = executor
-        self.impressoras = impressoras if impressoras is not None else Impressoras()
+        with medidor_abertura.etapa('impressoras_windows') if medidor_abertura is not None else nullcontext():
+            self.impressoras = impressoras if impressoras is not None else Impressoras()
         self.impressora_lote = ''
         self.uso_registrado = False
         self.encerrando = False

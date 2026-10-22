@@ -1,6 +1,7 @@
 """Painel HTTP restrito ao próprio computador, sem dependências web adicionais."""
 
 from integracao_hub import atender_integracao
+from contextlib import nullcontext
 
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -78,8 +79,8 @@ class ServidorInterface(ThreadingHTTPServer):
         super().server_close()
 
 
-def criar_servidor(estado=None, porta=8766):
-    estado = estado if estado is not None else EstadoImpressao()
+def criar_servidor(estado=None, porta=8766, medidor_abertura=None):
+    estado = estado if estado is not None else EstadoImpressao(medidor_abertura=medidor_abertura)
     token = token_urlsafe(32)
     recursos = {
         '/': ('src/impressao.html', 'text/html; charset=utf-8'),
@@ -227,5 +228,6 @@ def criar_servidor(estado=None, porta=8766):
             except (ValueError, RuntimeError) as erro:
                 self.responder(400, {'erro': str(erro)})
 
-    servidor = ServidorInterface(Manipulador, estado, porta)
+    with medidor_abertura.etapa('servidor_local') if medidor_abertura is not None else nullcontext():
+        servidor = ServidorInterface(Manipulador, estado, porta)
     return servidor, estado

@@ -13,13 +13,23 @@ Use Python de **32 bits**, compatível com a automação Sisplan já utilizada n
 
 No painel, clique em **Selecionar impressora**, escolha uma das filas instaladas no Windows e clique em **Usar impressora**. A lista inclui impressoras locais, conexões de rede instaladas para o usuário e filas virtuais. **Atualizar lista** consulta novamente o Windows. A presença na lista não garante que o equipamento esteja ligado; filas virtuais podem solicitar um local para salvar o arquivo.
 
-A última impressora utilizada é salva após o primeiro envio concluído pela automação, em `%LOCALAPPDATA%\Nunes\ImpressaoOPs\config.json`, e restaurada na próxima abertura, independentemente do navegador. Apenas escolher uma fila não substitui a última utilizada. Se a fila tiver sido removida ou renomeada, selecione outra antes de imprimir. Sem preferência salva, o painel aproveita `IMPRESSORA_OP`, se corresponder a uma fila instalada. O console continua usando essa variável de ambiente.
+A última impressora utilizada é salva após o primeiro envio concluído pela automação, em `%LOCALAPPDATA%\Nunes\ImpressaoOPs\config.json`, e restaurada na próxima abertura, independentemente do navegador. Apenas escolher uma fila não substitui a última utilizada. **Console e web usam a mesma prioridade:** a última impressora salva prevalece sobre `IMPRESSORA_OP`; a variável é usada somente sem preferência salva. Na web, uma escolha explícita válida para o lote prevalece sobre a seleção inicial.
 
-A seleção permanece fixa durante todo o lote, inclusive entre setores; não é possível trocá-la durante a execução. A impressora é validada novamente antes de iniciar. Se outra aba tiver alterado a seleção, confira a impressora exibida e prepare o lote novamente. Uma falha ao salvar a preferência é exibida no painel e registrada no log, sem interromper os envios.
+Se a fila salva tiver sido removida ou renomeada, a ferramenta informa o problema e não escolhe outra silenciosamente pela variável de ambiente. Selecione uma fila válida no painel; a nova preferência será salva após o primeiro envio concluído. Uma preferência ilegível mantém um aviso, mesmo quando a variável fornece uma fila válida.
+
+A seleção permanece fixa durante todo o lote, inclusive entre setores, no console e na web. O console valida a fila e exibe **Impressora do lote** antes de iniciar a automação do Sisplan; também registra o nome no diário operacional. Alterações de ambiente ou preferência durante a execução não trocam a fila desse lote. Na web, a impressora é validada novamente antes de iniciar. Se outra aba tiver alterado a seleção, confira a impressora exibida e prepare o lote novamente. Uma falha ao salvar a preferência é exibida no console ou painel e registrada no log, sem interromper nem repetir os envios.
 
 Abra `Abrir Impressao OPs.cmd` ou execute `.\.venv\Scripts\python.exe impressao.py`. O painel abre em `http://127.0.0.1:8766`, acessível somente neste computador. A porta fixa também preserva a preferência de tema no mesmo navegador. Se outra instância estiver aberta ou a porta estiver ocupada, a abertura informa a falha.
 
 Para criar um atalho com o ícone Nunes, execute `Criar Atalho Impressao OPs.ps1`; o arquivo `.lnk` é criado na própria pasta e pode ser copiado para a área de trabalho. Recrie-o se mover o projeto.
+
+## Diagnóstico de abertura
+
+A abertura registra as etapas em `logs/impressao-ops-abertura.log`, na pasta
+de presença da sessão Nunes. Diário local, preferência/enumeração de impressoras
+e criação do servidor têm tempos separados. Essa medição não envia impressão.
+Reabra a aplicação para carregar a mudança. Resultados e limites estão em
+[Tempos por etapa](../nunes-hub/TEMPOS_ABERTURA.md).
 
 ## Como usar
 
@@ -74,6 +84,55 @@ O histórico conta o primeiro envio concluído de cada OP/setor; reenvios do mes
 O registro funciona na interface web e no console, mesmo com o hub fechado. O módulo `metricas_nunes.py` é distribuído a partir do Hub Nunes; seu README documenta armazenamento, recuperação, filtros e exportação. Feche e reabra esta ferramenta após atualizar. O histórico começa com esta versão e não importa operações anteriores. Falhas na estatística não repetem nem interrompem operações concluídas; uma fila local recupera gravações transitórias e falhas de persistência são registradas no log. Antes de rodar a suíte completa, use um terminal exclusivo de testes e configure NUNES_METRICAS_DADOS para uma pasta temporária; o README do Hub Nunes contém o comando de isolamento.
 
 
+## Sincronização com a central local
+
+As entradas `impressao.py` e `main.py` enviam os eventos locais `op_enviada`
+já persistidos, incluindo o histórico anterior ao vínculo. A identidade
+OP/setor e o instante são preservados: reenvios da mesma métrica não aumentam
+a contagem; outro setor conta um novo envio. A sincronização não imprime,
+não acessa o Sisplan nem resolve incertezas do diário operacional. Conferir
+manualmente um envio continua sem criar métrica ou comprovante físico.
+
+Na pasta `nunes-estatisticas`, com a central já preparada, execute uma vez:
+
+```powershell
+.\.venv\Scripts\python.exe central.py vincular --automacao '..\auto-impressao-ops'
+```
+
+O comando cria `.local/central.json` privado e recusa sobrescrever vínculo
+existente. Reinicie a central atualizada e reabra Impressão de OPs e Hub.
+Não recrie bancos, identidade ou configuração da central. Sem vínculo, a
+ferramenta mantém o comportamento local e não faz envios à central.
+
+O sincronizador tenta enviar na abertura, a cada cinco segundos e ao encerrar;
+o fechamento espera até 2,5 segundos. Central desligada, resposta perdida ou
+confirmação inválida conservam pendências para outra abertura. Os registros
+originais e a fila `recuperar` não são removidos. As confirmações ficam em
+`sincronizacao-impressao-ops.sqlite3` na pasta das métricas, vinculadas à
+identidade da central e à assinatura do evento.
+
+Para consultar ou enviar estatísticas sem imprimir, na pasta desta ferramenta:
+
+```powershell
+.\.venv\Scripts\python.exe sincronizar_estatisticas.py --aplicacao impressao-ops --resumo
+.\.venv\Scripts\python.exe sincronizar_estatisticas.py --aplicacao impressao-ops
+```
+
+No Hub, **Resultados → Central local → Impressão de OPs** mostra o total
+acumulado e as pendências. Os filtros e agrupamentos do histórico local são
+independentes; números centrais e locais não são somados. O cliente funciona
+sem importar repositórios irmãos. Executáveis antigos precisam ser reconstruídos
+com `contrato_estatisticas.py`, `sincronizar_estatisticas.py` e `metricas_nunes.py`.
+Protocolo, backup e limites no [contrato da central](../nunes-estatisticas/CONTRATO.md).
+
+Validação de 22/10/2026: 68 testes Python e oito JavaScript da Impressão
+aprovados, incluindo nove testes novos da central. O conjunto dos sete projetos
+envolvidos somou 923 Python e 81 JavaScript, com tipagem completa do Financeiro
+sem erros ou avisos. Os cenários usam métricas, diários e central temporários;
+Sisplan e impressoras são simulados. Não houve impressão real. O vínculo privado
+foi criado após os testes; homologação operacional pendente após reiniciar
+a central e reabrir as interfaces.
+
 ## Recuperação de impressão — E9, 21/10/2026
 
 Painel e console salvam o lote antes de trabalhar e registram o início antes
@@ -116,3 +175,22 @@ Um processo de teste terminou abruptamente e outro recuperou concluído,
 incerto e pendente. Prévia Edge verificada em claro/escuro a 360/1200 px.
 Somente dados sintéticos; nenhuma OP foi impressa. Reabra a ferramenta para
 carregar a atualização; executáveis anteriores precisam ser reconstruídos.
+
+## Padronização da impressora — 21/10/2026
+
+O console passou a usar o gerenciador de impressoras existente na web, com
+validação antes de iniciar o Sisplan e seleção fixa para todas as OPs/setores
+da execução. Não há novo arquivo de configuração, dependência ou alteração
+do formato do diário. A regra de preferência está em **Instalação e abertura**.
+
+Passaram **59 testes Python e oito JavaScript**, incluindo nove regressões
+Python novas. O teste entre console e web usa a mesma preferência salva com
+ambiente divergente. Também foram conferidos ausência/remoção de fila, falha
+de consulta, escolha fixa entre setores, preferência ilegível, persistência
+após sucesso e falha de gravação sem repetir o envio. A proteção contra seleção
+de outra aba e os testes de recuperação/métricas continuam passando.
+
+Somente impressoras e controles simulados, HTTP local de teste e diretórios
+isolados; nenhuma OP real foi impressa nem houve interação com o Sisplan.
+Feche e reabra a ferramenta para carregar a mudança; executáveis antigos
+precisam ser reconstruídos. Homologação física de impressão permanece separada.

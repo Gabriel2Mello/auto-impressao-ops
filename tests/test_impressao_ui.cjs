@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const caminho = require('node:path');
 
-function painel() {
+function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=false}={}) {
   let alteracoes = 0, leitura, recusarLeitura;
   const requisicoes = [], eventos = {}, respostasConfirmacao = [], respostas = new Map();
   class Elemento {
@@ -25,13 +25,18 @@ function painel() {
   const estado = {ocupado: false, impressora: 'Fila sintética', fase: 'pronto', mensagem: 'Pronto', atual: '', enviadas: 0, total: 0, atividade: []};
   const sandbox = {
     document: {
+      get cookie() { if (falhaCookie) throw Error('Cookies indisponíveis'); return cookie; },
+      set cookie(valor) { if (falhaCookie) throw Error('Cookies indisponíveis'); cookie = valor; },
       getElementById: obter, querySelector: () => ({content: 'token-sintetico'}), querySelectorAll: () => [],
       documentElement: {dataset: {}}, createElement: tag => Object.assign(new Elemento(), {tag})
     },
     window: {addEventListener: (nome, funcao) => { eventos[nome] = funcao; }},
     crypto: {randomUUID: () => 'pagina-sintetica'}, AbortController, AbortSignal, TextDecoder,
-    matchMedia: () => ({matches: false, addEventListener() {}}),
-    localStorage: {getItem() { return null; }, setItem() {}},
+    matchMedia: () => { throw Error('O tema não depende do sistema operacional'); },
+    localStorage: {
+      getItem() { if (falhaStorage) throw Error('Storage indisponível'); return temaSalvo; },
+      setItem(_chave, valor) { if (falhaStorage) throw Error('Storage indisponível'); temaSalvo = valor; },
+    },
     confirm: () => respostasConfirmacao.shift(),
     // Qualquer retorno ao polling em segundo plano faz os testes falharem.
     setTimeout() { throw Error('O painel parado não deve agendar atualização.'); },
@@ -50,12 +55,47 @@ function painel() {
   };
   vm.runInNewContext(fs.readFileSync(caminho.join(__dirname, '../src/impressao.js'), 'utf8'), sandbox);
   return {
-    eventos, requisicoes, respostasConfirmacao, respostas, obter, estado,
+    eventos, requisicoes, respostasConfirmacao, respostas, obter, estado, sandbox,
     alteracoes: () => alteracoes,
     enviar: mensagem => leitura({value: new TextEncoder().encode(mensagem), done: false})
   };
 }
 const avancar = () => new Promise(resolve => setImmediate(resolve));
+
+test('tema escuro padrão e preferências válidas são recuperados sem consultar o sistema', () => {
+  for (const [salvo, esperado] of [[null, 'escuro'], ['invalido', 'escuro'], ['claro', 'claro'], ['escuro', 'escuro']]) {
+    const ui = painel({temaSalvo: salvo});
+    assert.equal(ui.sandbox.document.documentElement.dataset.tema, esperado);
+    assert.equal(ui.obter('tema').textContent, esperado === 'escuro' ? 'Tema claro' : 'Tema escuro');
+    if (salvo === esperado) assert.match(ui.sandbox.document.cookie, new RegExp(`^nunes-impressao-tema=${esperado};`));
+    ui.eventos.pagehide();
+  }
+});
+
+test('alternância salva a preferência e cookie restaura o tema com storage de outra porta', () => {
+  const ui = painel();
+  ui.obter('tema').onclick();
+  assert.equal(ui.sandbox.document.documentElement.dataset.tema, 'claro');
+  assert.equal(ui.sandbox.localStorage.getItem('nunes-impressao-tema'), 'claro');
+  assert.equal(ui.sandbox.document.cookie, 'nunes-impressao-tema=claro; Max-Age=31536000; Path=/; SameSite=Strict');
+  const reaberto = painel({cookie: ui.sandbox.document.cookie});
+  assert.equal(reaberto.sandbox.document.documentElement.dataset.tema, 'claro');
+  const conflitante = painel({cookie: ui.sandbox.document.cookie, temaSalvo: 'escuro'});
+  assert.equal(conflitante.sandbox.document.documentElement.dataset.tema, 'claro');
+  const invalido = painel({cookie: 'nunes-impressao-tema=claro=invalido', temaSalvo: 'escuro'});
+  assert.equal(invalido.sandbox.document.documentElement.dataset.tema, 'escuro');
+  reaberto.obter('tema').onclick();
+  assert.equal(reaberto.sandbox.localStorage.getItem('nunes-impressao-tema'), 'escuro');
+  ui.eventos.pagehide(); reaberto.eventos.pagehide(); conflitante.eventos.pagehide(); invalido.eventos.pagehide();
+});
+
+test('armazenamentos indisponíveis mantêm tema escuro inicial e alternância funcional', () => {
+  const ui = painel({falhaStorage: true, falhaCookie: true});
+  assert.equal(ui.sandbox.document.documentElement.dataset.tema, 'escuro');
+  ui.obter('tema').onclick();
+  assert.equal(ui.sandbox.document.documentElement.dataset.tema, 'claro');
+  ui.eventos.pagehide();
+});
 
 test('painel parado não consulta periodicamente nem redesenha o mesmo estado', async () => {
   const ui = painel(); await avancar();

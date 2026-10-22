@@ -19,7 +19,7 @@ Se a fila salva tiver sido removida ou renomeada, a ferramenta informa o problem
 
 A seleção permanece fixa durante todo o lote, inclusive entre setores, no console e na web. O console valida a fila e exibe **Impressora do lote** antes de iniciar a automação do Sisplan; também registra o nome no diário operacional. Alterações de ambiente ou preferência durante a execução não trocam a fila desse lote. Na web, a impressora é validada novamente antes de iniciar. Se outra aba tiver alterado a seleção, confira a impressora exibida e prepare o lote novamente. Uma falha ao salvar a preferência é exibida no console ou painel e registrada no log, sem interromper nem repetir os envios.
 
-Abra `Abrir Impressao OPs.cmd` ou execute `.\.venv\Scripts\python.exe impressao.py`. O painel abre em `http://127.0.0.1:8766`, acessível somente neste computador. A porta fixa também preserva a preferência de tema no mesmo navegador. Se outra instância estiver aberta ou a porta estiver ocupada, a abertura informa a falha.
+Abra `Abrir Impressao OPs.cmd` ou execute `.\.venv\Scripts\python.exe impressao.py`. O painel abre em `http://127.0.0.1:8766`, acessível somente neste computador. A preferência de tema fica salva no mesmo navegador. Se outra instância estiver aberta ou a porta estiver ocupada, a abertura informa a falha.
 
 Para criar um atalho com o ícone Nunes, execute `Criar Atalho Impressao OPs.ps1`; o arquivo `.lnk` é criado na própria pasta e pode ser copiado para a área de trabalho. Recrie-o se mover o projeto.
 
@@ -52,7 +52,7 @@ O modo de console mantém `MODO_ENTRADA` em `main.py` e a leitura de `ordem_prod
 
 ## Visual e implementação
 
-Visual baseado nos painéis locais de `nunes-contas-receber` e `auto-pedidos-havan`: cartões, conferência, andamento e temas claro/escuro, com preferência inicial do sistema e alternância manual. O ícone coração com N, cor `#475569`, foi copiado das exportações de `auto-impressao-ops` do hub `estrutura-nunes`. A assinatura **g2mello · Essencial** inclui os dois traços sob os `l` e o link de autoria. Os recursos ficam neste projeto; sua execução não depende do caminho do hub.
+Visual baseado nos painéis locais de `nunes-contas-receber` e `auto-pedidos-havan`: cartões, conferência, andamento e temas claro/escuro, com tema escuro por padrão e alternância manual salva entre sessões. O ícone coração com N, cor `#475569`, foi copiado das exportações de `auto-impressao-ops` do hub `estrutura-nunes`. A assinatura **g2mello · Essencial** inclui os dois traços sob os `l` e o link de autoria. Os recursos ficam neste projeto; sua execução não depende do caminho do hub.
 
 O servidor usa a biblioteca padrão Python, sem framework web ou build de frontend. Apenas a execução real importa `pywinauto`. Os comandos da API exigem token da sessão, origem local e Host correspondente; a conferência não acessa o Sisplan nem a impressora.
 

@@ -216,7 +216,7 @@ class TestHttp(ComImpressoras):
         self.assertEqual(resposta.status, 404)
 
     def test_recursos_visuais_e_validacao_da_api(self):
-        for caminho in ['/impressao.css', '/impressao.js', '/icons/icone.svg', '/favicon.ico']:
+        for caminho in ['/impressao.css', '/impressao.js', '/nunes-tema.js', '/icons/icone.svg', '/favicon.ico']:
             resposta, conteudo = self.requisicao('GET', caminho)
             self.assertEqual(resposta.status, 200)
             self.assertTrue(conteudo)

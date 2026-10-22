@@ -241,23 +241,5 @@ document.querySelectorAll('[data-modo]').forEach(botao => { botao.onclick = () =
 }; });
 $('campos').addEventListener('input', invalidar);
 $('adicionar').onclick = adicionarIntervalo;
-function aplicarTema(tema) {
-  document.documentElement.dataset.tema = tema;
-  $('tema').textContent = tema === 'escuro' ? 'Tema claro' : 'Tema escuro';
-}
-function salvarTema(tema) {
-  try { document.cookie = `nunes-impressao-tema=${tema}; Max-Age=31536000; Path=/; SameSite=Strict`; } catch { /* O tema continua ativo nesta aba. */ }
-  try { localStorage.setItem('nunes-impressao-tema', tema); } catch { /* O cookie preserva a preferência quando disponível. */ }
-}
-let temaSalvo;
-try { temaSalvo = document.cookie?.split(';').map(item => item.trim()).find(item => item.startsWith('nunes-impressao-tema='))?.slice('nunes-impressao-tema='.length); } catch { /* Tentar a preferência local anterior. */ }
-if (!['claro', 'escuro'].includes(temaSalvo)) {
-  try { temaSalvo = localStorage.getItem('nunes-impressao-tema'); } catch { /* Usar o padrão escuro. */ }
-}
-aplicarTema(['claro', 'escuro'].includes(temaSalvo) ? temaSalvo : 'escuro');
-if (['claro', 'escuro'].includes(temaSalvo)) salvarTema(temaSalvo);
-$('tema').onclick = () => {
-  const tema = document.documentElement.dataset.tema === 'escuro' ? 'claro' : 'escuro'; aplicarTema(tema);
-  salvarTema(tema);
-};
+window.NunesTema.iniciar({controle:$('tema'),chave:'nunes-impressao-tema',cookie:true});
 adicionarIntervalo(); acompanhar();

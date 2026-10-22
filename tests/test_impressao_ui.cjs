@@ -14,7 +14,7 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
     append(...filhos) { this.children.push(...filhos); alteracoes++; }
     replaceChildren(...filhos) { this.children = filhos; this.value = ''; alteracoes++; }
     setAttribute() {}
-    addEventListener() {}
+    addEventListener(nome,acao) { if(nome==='click')this.onclick=acao; }
     focus() {}
     showModal() { this.open = true; }
     close() { this.open = false; }
@@ -28,7 +28,7 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
       get cookie() { if (falhaCookie) throw Error('Cookies indisponíveis'); return cookie; },
       set cookie(valor) { if (falhaCookie) throw Error('Cookies indisponíveis'); cookie = valor; },
       getElementById: obter, querySelector: () => ({content: 'token-sintetico'}), querySelectorAll: () => [],
-      documentElement: {dataset: {}}, createElement: tag => Object.assign(new Elemento(), {tag})
+      documentElement: {dataset: {},setAttribute(nome,valor){this.dataset.tema=valor;}}, createElement: tag => Object.assign(new Elemento(), {tag})
     },
     window: {addEventListener: (nome, funcao) => { eventos[nome] = funcao; }},
     crypto: {randomUUID: () => 'pagina-sintetica'}, AbortController, AbortSignal, TextDecoder,
@@ -53,6 +53,8 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
       return {ok: true, json: async () => estado};
     }
   };
+  obter('tema').tagName='BUTTON';
+  vm.runInNewContext(fs.readFileSync(caminho.join(__dirname, '../src/nunes-tema.js'), 'utf8'), sandbox);
   vm.runInNewContext(fs.readFileSync(caminho.join(__dirname, '../src/impressao.js'), 'utf8'), sandbox);
   return {
     eventos, requisicoes, respostasConfirmacao, respostas, obter, estado, sandbox,
@@ -77,7 +79,7 @@ test('alternância salva a preferência e cookie restaura o tema com storage de 
   ui.obter('tema').onclick();
   assert.equal(ui.sandbox.document.documentElement.dataset.tema, 'claro');
   assert.equal(ui.sandbox.localStorage.getItem('nunes-impressao-tema'), 'claro');
-  assert.equal(ui.sandbox.document.cookie, 'nunes-impressao-tema=claro; Max-Age=31536000; Path=/; SameSite=Strict');
+  assert.equal(ui.sandbox.document.cookie, 'nunes-impressao-tema=claro; Path=/; Max-Age=31536000; SameSite=Strict');
   const reaberto = painel({cookie: ui.sandbox.document.cookie});
   assert.equal(reaberto.sandbox.document.documentElement.dataset.tema, 'claro');
   const conflitante = painel({cookie: ui.sandbox.document.cookie, temaSalvo: 'escuro'});

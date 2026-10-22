@@ -86,6 +86,7 @@ def criar_servidor(estado=None, porta=8766, medidor_abertura=None):
         '/': ('src/impressao.html', 'text/html; charset=utf-8'),
         '/impressao.css': ('src/impressao.css', 'text/css; charset=utf-8'),
         '/impressao.js': ('src/impressao.js', 'text/javascript; charset=utf-8'),
+        '/nunes-tema.js': ('src/nunes-tema.js', 'text/javascript; charset=utf-8'),
         '/icons/icone.svg': ('icons/icone.svg', 'image/svg+xml'),
         '/favicon.ico': ('icons/icone.ico', 'image/x-icon'),
         '/icons/icone-192.png': ('icons/icone-192.png', 'image/png'),

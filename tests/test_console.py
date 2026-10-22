@@ -16,6 +16,7 @@ from src.servico_impressao import EstadoImpressao
 
 class TestConsole(unittest.TestCase):
     def setUp(self):
+        self.enterContext(patch('sincronizar_estatisticas.ler_configuracao', return_value=None))
         contexto = self.enterContext(ExitStack())
         pasta = self.enterContext(TemporaryDirectory())
         contexto.enter_context(patch.dict('os.environ', {

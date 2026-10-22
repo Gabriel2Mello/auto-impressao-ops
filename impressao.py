@@ -3,6 +3,7 @@
 import logging
 import sys
 from integracao_hub import IntegracaoLocal, executar_interface
+from sincronizar_estatisticas import Sincronizador
 
 
 
@@ -15,6 +16,11 @@ def informar_falha(mensagem):
 
 
 def main(publicacao: IntegracaoLocal):
+    with Sincronizador(aplicacao='impressao-ops', relatar=logging.getLogger(__name__).info):
+        return executar_painel(publicacao)
+
+
+def executar_painel(publicacao: IntegracaoLocal):
     from src.interface_web import criar_servidor
     from src.utils import DIRETORIO_APLICACAO
     try:

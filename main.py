@@ -1,6 +1,7 @@
 from time import sleep, perf_counter
 
 from metricas_nunes import registrar_evento
+from sincronizar_estatisticas import Sincronizador
 
 from pywinauto.keyboard import send_keys
 
@@ -79,6 +80,11 @@ def processar_lote(app, campos, lote, diario=None, execucao=None, *, impressora,
 
 
 def main():
+    with Sincronizador(aplicacao='impressao-ops'):
+        return executar_console_impressao()
+
+
+def executar_console_impressao():
     start_time = perf_counter()
 
     try:

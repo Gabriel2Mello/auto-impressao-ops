@@ -1,6 +1,7 @@
 __pycache__
 .venv/
 venv32/
+.local/
 *.log
 *.lnk
 ordem_producao.txt

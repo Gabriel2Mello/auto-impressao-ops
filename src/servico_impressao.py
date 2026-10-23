@@ -3,7 +3,6 @@
 import logging
 from contextlib import nullcontext
 
-from metricas_nunes import registrar_evento
 from threading import Event, Lock, Thread
 
 from src.entrada_web import montar_lotes
@@ -29,8 +28,6 @@ def executar_lotes(lotes, parar, atualizar, impressora=None):
             # Uma falha pode ocorrer após o envio: não repetir impressão automaticamente.
             processar_ordem(app, campos, numero, impressora=impressora)
             atualizar('enviada', numero, lote['setor'])
-            registrar_evento('op_enviada', f"{str(numero).zfill(6)}:{lote['setor']}",
-                             str(numero).zfill(6), empresa='FILIAL', setor=lote['setor'])
 
 
 class ConflitoExecucao(RuntimeError):

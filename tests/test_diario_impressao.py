@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 from tempfile import TemporaryDirectory
 from threading import Event
 import unittest
@@ -7,16 +8,76 @@ from unittest.mock import Mock, patch
 from src.diario_impressao import DiarioImpressao
 from src.impressoras import Impressoras
 from src.servico_impressao import EstadoImpressao
+from metricas_nunes import consultar_metricas, registrar_evento
 
 
 class TestDiario(unittest.TestCase):
     def setUp(self):
         pasta = self.enterContext(TemporaryDirectory())
+        self.enterContext(patch.dict(os.environ, {'NUNES_METRICAS_DADOS': pasta}))
         self.caminho = Path(pasta) / 'execucoes.sqlite3'
         self.lotes = [{'setor': '10', 'ordens': ['000001', '000002', '000003']}]
         self.diario = DiarioImpressao(self.caminho)
         self.impressoras = Impressoras(Path(pasta) / 'config.json', listar=lambda: ['Fila sintética'])
         self.impressoras.selecionar('Fila sintética')
+
+    def metricas(self):
+        return consultar_metricas({'inicio': '2026-01-01', 'fim': '2099-12-31'})
+
+    def test_metricas_indisponiveis_sao_recuperadas_com_identidade_e_instante_originais(self):
+        execucao = self.diario.iniciar(self.lotes)
+        self.diario.atualizar(execucao, '1', '10', 'envio_iniciado')
+        with patch('src.diario_impressao.registrar_evento', return_value=False):
+            self.diario.atualizar(execucao, '1', '10', 'concluido')
+        envio = self.diario.consultar()[0]
+        self.assertEqual(self.metricas()['totais']['op_enviada'], 0)
+        DiarioImpressao(self.caminho)
+        dados = self.metricas()
+        self.assertEqual(dados['totais']['op_enviada'], 1)
+        self.assertEqual(dados['historico'][0]['ocorrido_em'], envio['atualizado_em'])
+        self.assertEqual(dados['historico'][0]['execucao'], execucao)
+        DiarioImpressao(self.caminho)
+        self.assertEqual(self.metricas()['totais']['op_enviada'], 1)
+
+    def test_queda_apos_aceite_da_metrica_nao_duplica_na_reabertura(self):
+        execucao = self.diario.iniciar(self.lotes)
+        self.diario.atualizar(execucao, '1', '10', 'envio_iniciado')
+        def aceitar_sem_confirmar(*args, **kwargs):
+            self.assertTrue(registrar_evento(*args, **kwargs))
+            raise RuntimeError('Queda sintética após aceite')
+        with patch('src.diario_impressao.registrar_evento', side_effect=aceitar_sem_confirmar), self.assertLogs(level='ERROR'):
+            self.diario.atualizar(execucao, '1', '10', 'concluido')
+        self.assertEqual(self.metricas()['totais']['op_enviada'], 1)
+        DiarioImpressao(self.caminho)
+        self.assertEqual(self.metricas()['totais']['op_enviada'], 1)
+        with self.diario.conectar() as banco:
+            self.assertEqual(banco.execute('SELECT count(*) FROM metricas').fetchone()[0], 0)
+
+    def test_migracao_v1_preserva_historico_sem_republicar_conclusoes_antigas(self):
+        execucao = self.diario.iniciar(self.lotes)
+        self.diario.atualizar(execucao, '1', '10', 'envio_iniciado')
+        with self.diario.conectar() as banco:
+            banco.execute("UPDATE envios SET situacao='concluido' WHERE numero='000001'")
+            banco.execute('DROP TABLE metricas')
+            banco.execute('PRAGMA user_version=1')
+        antes = self.diario.consultar()
+        migrado = DiarioImpressao(self.caminho)
+        self.assertEqual(migrado.consultar(), antes)
+        self.assertEqual(self.metricas()['totais']['op_enviada'], 0)
+        novo = migrado.iniciar([{'setor': '10', 'ordens': ['000001']}])
+        migrado.atualizar(novo, '1', '10', 'envio_iniciado')
+        migrado.atualizar(novo, '1', '10', 'concluido')
+        self.assertEqual(self.metricas()['totais']['op_enviada'], 1)
+
+    def test_falha_criar_metrica_desfaz_conclusao_sem_registrar_envio(self):
+        execucao = self.diario.iniciar(self.lotes)
+        self.diario.atualizar(execucao, '1', '10', 'envio_iniciado')
+        with self.diario.conectar() as banco:
+            banco.execute("CREATE TRIGGER falhar BEFORE INSERT ON metricas BEGIN SELECT RAISE(ABORT, 'sintetico'); END")
+        with self.assertRaises(RuntimeError):
+            self.diario.atualizar(execucao, '1', '10', 'concluido')
+        self.assertEqual(self.diario.consultar()[0]['situacao'], 'envio_iniciado')
+        self.assertEqual(self.metricas()['totais']['op_enviada'], 0)
 
     def test_reabertura_preserva_concluido_incerto_e_nao_iniciado(self):
         execucao = self.diario.iniciar(self.lotes, 'Fila sintética')
@@ -113,7 +174,7 @@ class TestDiario(unittest.TestCase):
         with patch('src.handle_app.inicia_app', return_value=(None, {})), \
              patch('src.handle_app.preencher_dados_fixos'), \
              patch('main.processar_ordem', return_value=True) as envio, \
-             patch('src.servico_impressao.registrar_evento') as metricas, \
+             patch('src.diario_impressao.registrar_evento') as metricas, \
              patch.object(self.diario, 'atualizar', side_effect=atualizar), self.assertLogs(level='ERROR'):
             estado.iniciar({'modo': 'lista', 'ordens': '1 2', 'setor': '10', 'impressora': 'Fila sintética'})
             estado.worker.join(3)

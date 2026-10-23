@@ -2,10 +2,13 @@
 
 from contextlib import contextmanager
 from datetime import datetime, timezone
+import logging
 import os
 from pathlib import Path
 import sqlite3
 from uuid import uuid4
+
+from metricas_nunes import registrar_evento
 
 
 class DiarioImpressao:
@@ -30,13 +33,19 @@ class DiarioImpressao:
                         'conferido_enviado','conferido_nao_enviado')),
                     UNIQUE(execucao, numero, setor))""")
                 banco.execute('PRAGMA user_version=1')
-            elif versao != 1:
+            elif versao not in (1, 2):
                 raise RuntimeError('Versão desconhecida do diário de impressão. Preserve o arquivo para análise.')
+            if versao in (0, 1):
+                # Apenas novas conclusões entram na fila; o histórico v1 já alimentou
+                # métricas por OP/setor e não permite reconstruir todas as repetições.
+                banco.execute('CREATE TABLE metricas (envio_id TEXT PRIMARY KEY REFERENCES envios(id))')
+                banco.execute('PRAGMA user_version=2')
             invalidos = banco.execute("""SELECT COUNT(*) FROM envios WHERE situacao NOT IN
                 ('pendente','envio_iniciado','concluido','incerto',
                  'conferido_enviado','conferido_nao_enviado')""").fetchone()[0]
             if invalidos:
                 raise RuntimeError('Diário de impressão inválido. Preserve o arquivo para análise.')
+        self.publicar_metricas()
 
     @contextmanager
     def conectar(self):
@@ -85,6 +94,30 @@ class DiarioImpressao:
                                     str(numero).zfill(6), str(setor), anterior))
             if cursor.rowcount != 1:
                 raise RuntimeError('Transição inválida no diário de impressão. Execução interrompida.')
+            if situacao == 'concluido':
+                banco.execute('INSERT INTO metricas SELECT id FROM envios '
+                              'WHERE execucao=? AND numero=? AND setor=?',
+                              (execucao, str(numero).zfill(6), str(setor)))
+        if situacao == 'concluido':
+            self.publicar_metricas()
+
+    def publicar_metricas(self):
+        """Republicar estatísticas pendentes nunca repete a operação de impressão."""
+        try:
+            with self.conectar() as banco:
+                pendentes = banco.execute('SELECT envios.* FROM metricas JOIN envios '
+                                         'ON envios.id=metricas.envio_id ORDER BY envios.rowid').fetchall()
+            for envio in pendentes:
+                aceito = registrar_evento('op_enviada', 'impressao:' + envio['id'], envio['numero'],
+                                          empresa='FILIAL', setor=envio['setor'], execucao=envio['execucao'],
+                                          ocorrido_em=datetime.fromisoformat(envio['atualizado_em']))
+                if not aceito:
+                    return
+                with self.conectar() as banco:
+                    banco.execute('DELETE FROM metricas WHERE envio_id=?', (envio['id'],))
+        except (OSError, RuntimeError, ValueError):
+            logging.exception('Estatística de impressão pendente no diário; será republicada ao reabrir '
+                              'ou concluir outra OP. Nenhuma impressão será repetida.')
 
     def interromper(self, execucao):
         with self.conectar() as banco:

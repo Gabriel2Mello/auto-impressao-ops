@@ -79,7 +79,22 @@ Criado por Gabriel Mello · [g2mello](https://github.com/Gabriel2Mello)
 
 ## Estatísticas no Hub Nunes
 
-O histórico conta o primeiro envio concluído de cada OP/setor; reenvios do mesmo par não aumentam o total. Uma OP em outro setor conta um novo envio. O indicador não comprova a saída física do papel. A atividade da execução continua em memória; o diário operacional da E9 é separado das métricas.
+**Total** conta cada novo envio concluído, incluindo novas solicitações da mesma OP.
+**Reimpressões** conta cada ocorrência após a primeira do mesmo número de OP em
+todo o histórico disponível, independentemente do setor; já está incluída no total.
+Os contadores respeitam as datas aplicadas no Hub e também aparecem por dia.
+Não há contador de OPs distintas na interface. O indicador não comprova a saída
+física do papel. Repetições descartadas pelo contador antigo não podem ser
+reconstruídas; seus registros existentes são preservados.
+
+O diário migra automaticamente de v1 para v2, conservando os envios e incertezas.
+A partir desta atualização, cada conclusão cria uma pendência de estatística na
+mesma transação. A publicação usa o ID do envio, o lote e o instante persistido;
+reabrir ou republicar não duplica nem reimprime. Pendências são tentadas novamente
+na abertura e após outra conclusão. Se só o diário tiver aceitado a estatística,
+o Hub ainda não a conhece; consulte o log e reabra a ferramenta após resolver a
+indisponibilidade. Conclusões antigas não são importadas novamente para evitar
+duplicação com o contador anterior. Preserve o diário e as métricas no backup.
 
 O registro funciona na interface web e no console, mesmo com o hub fechado. O módulo `metricas_nunes.py` é distribuído a partir do Hub Nunes; seu README documenta armazenamento, recuperação, filtros e exportação. Feche e reabra esta ferramenta após atualizar. O histórico começa com esta versão e não importa operações anteriores. Falhas na estatística não repetem nem interrompem operações concluídas; uma fila local recupera gravações transitórias e falhas de persistência são registradas no log. Antes de rodar a suíte completa, use um terminal exclusivo de testes e configure NUNES_METRICAS_DADOS para uma pasta temporária; o README do Hub Nunes contém o comando de isolamento.
 
@@ -88,8 +103,8 @@ O registro funciona na interface web e no console, mesmo com o hub fechado. O m�
 
 As entradas `impressao.py` e `main.py` enviam os eventos locais `op_enviada`
 já persistidos, incluindo o histórico anterior ao vínculo. A identidade
-OP/setor e o instante são preservados: reenvios da mesma métrica não aumentam
-a contagem; outro setor conta um novo envio. A sincronização não imprime,
+de cada envio e o instante são preservados: reenvios da mesma métrica não aumentam
+a contagem; uma nova impressão concluída gera outra métrica. A sincronização não imprime,
 não acessa o Sisplan nem resolve incertezas do diário operacional. Conferir
 manualmente um envio continua sem criar métrica ou comprovante físico.
 
@@ -118,8 +133,9 @@ Para consultar ou enviar estatísticas sem imprimir, na pasta desta ferramenta:
 .\.venv\Scripts\python.exe sincronizar_estatisticas.py --aplicacao impressao-ops
 ```
 
-No Hub, **Resultados → Central local → Impressão de OPs** mostra o total
-acumulado e as pendências. Os filtros e agrupamentos do histórico local são
+No Hub, **Resultados → Impressão de OPs** mostra os contadores locais; **Conferir
+agora** atualiza essa consulta uma única vez. A API da central conserva o total
+recebido e as pendências. Os filtros e agrupamentos do histórico local são
 independentes; números centrais e locais não são somados. O cliente funciona
 sem importar repositórios irmãos. Executáveis antigos precisam ser reconstruídos
 com `contrato_estatisticas.py`, `sincronizar_estatisticas.py` e `metricas_nunes.py`.
@@ -152,7 +168,7 @@ enviado**, confirmando a decisão. A ação só registra a conferência manual;
 não imprime nem lança uma métrica. Após resolver as incertezas, prepare e
 confira um novo lote apenas com as OPs desejadas. Pendentes e concluídas não
 são reenviadas automaticamente. Uma nova impressão pelo botão é uma nova
-solicitação explícita; as métricas continuam deduplicadas por OP/setor.
+solicitação explícita e acrescenta outra ocorrência nas métricas após conclusão.
 
 O responsável também pode consultar ou registrar a conferência pelo console:
 

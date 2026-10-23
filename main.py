@@ -1,6 +1,5 @@
 from time import sleep, perf_counter
 
-from metricas_nunes import registrar_evento
 from sincronizar_estatisticas import Sincronizador
 
 from pywinauto.keyboard import send_keys
@@ -73,8 +72,6 @@ def processar_lote(app, campos, lote, diario=None, execucao=None, *, impressora,
             raise
         if ao_enviar is not None:
             ao_enviar()
-        registrar_evento('op_enviada', f'{str(numero).zfill(6)}:{setor}', str(numero).zfill(6),
-                         empresa='FILIAL', setor=str(setor))
 
     print(f'Setor {setor} concluído.')
 

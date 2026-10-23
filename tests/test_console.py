@@ -20,7 +20,7 @@ class TestConsole(unittest.TestCase):
         contexto = self.enterContext(ExitStack())
         pasta = self.enterContext(TemporaryDirectory())
         contexto.enter_context(patch.dict('os.environ', {
-            'NUNES_OPS_DADOS': pasta, 'LOCALAPPDATA': pasta,
+            'NUNES_OPS_DADOS': pasta, 'NUNES_METRICAS_DADOS': pasta, 'LOCALAPPDATA': pasta,
             'IMPRESSORA_OP': 'Impressora sintética',
         }))
         self.pasta = Path(pasta)
@@ -39,7 +39,7 @@ class TestConsole(unittest.TestCase):
         self.mini_menu = contexto.enter_context(patch('main.handle_mini_menu', return_value=True))
         self.fechar_menu = contexto.enter_context(patch('main.fecha_menu_impressao'))
         self.preencher = contexto.enter_context(patch('main.preencher_dados_fixos'))
-        self.registrar = contexto.enter_context(patch('main.registrar_evento'))
+        self.registrar = contexto.enter_context(patch('src.diario_impressao.registrar_evento', return_value=True))
         self.obter_lotes = contexto.enter_context(patch('main.obter_lotes'))
         self.iniciar_app = contexto.enter_context(patch('main.inicia_app', return_value=(self.app, self.campos)))
         contexto.enter_context(patch('builtins.input', return_value=''))
@@ -95,8 +95,13 @@ class TestConsole(unittest.TestCase):
         self.assertEqual(self.app.window.return_value.OK.click.call_count, 2)
         self.assertEqual(self.campos['numero'].set_text.call_args_list, [call('000001'), call('000002')])
         self.preencher.assert_called_once_with(self.campos, '10')
-        self.registrar.assert_called_once_with(
-            'op_enviada', '000001:10', '000001', empresa='FILIAL', setor='10')
+        self.registrar.assert_called_once()
+        chamada = self.registrar.call_args
+        self.assertEqual(chamada.args[0], 'op_enviada')
+        self.assertTrue(chamada.args[1].startswith('impressao:'))
+        self.assertEqual(chamada.args[2], '000001')
+        self.assertEqual(chamada.kwargs['setor'], '10')
+        self.assertIsNotNone(chamada.kwargs['ocorrido_em'].tzinfo)
         mensagens = '\n'.join(str(chamada.args[0]) for chamada in self.imprimir.call_args_list)
         self.assertIn('Confira a OP 000002', mensagens)
         self.assertIn('fila da impressora e no papel', mensagens)

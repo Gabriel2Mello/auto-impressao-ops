@@ -85,17 +85,21 @@ class TestEstatisticasCentrais(unittest.TestCase):
 
     def produzir(self, setor='10', falha=False):
         lotes = [{'setor': setor, 'ordens': ['000123', '000124']}]
+        diario = DiarioImpressao()
+        execucao = diario.iniciar(lotes, 'Fila sintética')
+        def atualizar(evento, numero, setor):
+            diario.atualizar(execucao, numero, setor, 'concluido' if evento == 'enviada' else 'envio_iniciado')
         with patch('src.handle_app.inicia_app', return_value=(None, {})), \
                 patch('src.handle_app.preencher_dados_fixos'), \
                 patch('main.processar_ordem', side_effect=[True, RuntimeError('sintetico')] if falha else None,
                       return_value=True):
-            executar_lotes(lotes, Event(), Mock(), 'Fila sintética')
+            executar_lotes(lotes, Event(), atualizar, 'Fila sintética')
 
-    def test_historico_deduplica_op_setor_e_nao_soma_outros_produtores(self):
+    def test_historico_conta_reimpressoes_e_nao_soma_outros_produtores(self):
         self.produzir(); self.produzir(); self.produzir('20')
         self.assertTrue(registrar_evento('arquivo_transferido', 'arquivo-sintetico', '1234', tipo='busca_pdf'))
-        self.assertEqual(self.cliente().sincronizar()['confirmados_neste_ciclo'], 4)
-        self.assertEqual(self.total(), 4)
+        self.assertEqual(self.cliente().sincronizar()['confirmados_neste_ciclo'], 6)
+        self.assertEqual(self.total(), 6)
         self.assertEqual(self.cliente().sincronizar()['confirmados_neste_ciclo'], 0)
         self.assertEqual(len(sync.Cliente(self.config, self.metricas).pendentes()), 1)
 

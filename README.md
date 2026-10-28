@@ -119,8 +119,10 @@ existente. Reinicie a central atualizada e reabra Impressão de OPs e Hub.
 Não recrie bancos, identidade ou configuração da central. Sem vínculo, a
 ferramenta mantém o comportamento local e não faz envios à central.
 
-O sincronizador tenta enviar na abertura, a cada cinco segundos e ao encerrar;
-o fechamento espera até 2,5 segundos. Central desligada, resposta perdida ou
+O sincronizador tenta enviar na abertura e ao encerrar. A espera entre ciclos
+é de cinco segundos, subindo gradualmente até 30 segundos somente sem atividade
+nem pendências; atividade ou falha retomam cinco segundos.
+O fechamento espera até 2,5 segundos. Central desligada, resposta perdida ou
 confirmação inválida conservam pendências para outra abertura. Os registros
 originais e a fila `recuperar` não são removidos. As confirmações ficam em
 `sincronizacao-impressao-ops.sqlite3` na pasta das métricas, vinculadas à

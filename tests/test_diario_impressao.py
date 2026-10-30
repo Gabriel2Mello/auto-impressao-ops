@@ -108,13 +108,16 @@ class TestDiario(unittest.TestCase):
             estado.worker.join(3)
         self.assertEqual([i['situacao'] for i in self.diario.consultar()], ['incerto', 'pendente', 'pendente'])
         reaberto = EstadoImpressao(executor, self.impressoras, DiarioImpressao(self.caminho))
-        with self.assertRaisesRegex(RuntimeError, 'incerta'):
-            reaberto.iniciar({'modo': 'lista', 'ordens': '4', 'impressora': 'Fila sintética'})
         self.assertEqual(chamadas, ['envio'])
-        item = reaberto.situacao()['historico'][0]
-        with self.assertRaises(ValueError):
-            reaberto.conferir_impressao({'id': item['id'], 'resultado': 'conferido_enviado'})
-        reaberto.conferir_impressao({'id': item['id'], 'resultado': 'conferido_enviado', 'conferi_fila_e_papel': True})
+        self.assertEqual(reaberto.situacao()['historico'][0]['situacao'], 'incerto')
+        # Abrir o painel não repete nada. Um novo pedido usa apenas o novo lote.
+        recebidos = []
+        reaberto.executor = lambda lotes, *_: recebidos.extend(lotes[0]['ordens'])
+        reaberto.iniciar({'modo': 'lista', 'ordens': '4', 'impressora': 'Fila sintética'})
+        reaberto.worker.join(3)
+        self.assertEqual(recebidos, ['000004'])
+        self.assertEqual([i['numero'] for i in reaberto.situacao()['historico']], ['000004'])
+        self.assertEqual(self.diario.consultar()[0]['situacao'], 'incerto')
         self.assertEqual(chamadas, ['envio'])
 
     def test_falha_persistir_inicio_impede_qualquer_envio(self):

@@ -4,7 +4,7 @@ const token = document.querySelector('meta[name="impressao-token"]').content;
 const desktop = document.querySelector('meta[name="impressao-desktop"]')?.content === '1';
 let salvamentoTema = Promise.resolve(true);
 let modo = 'intervalos', conferido = null, ocupado = false, online = false, encerrado = false, pendente = false, impressora = '';
-let numeroIntervalo = 0;
+let numeroIntervalo = 0, abaAtual = 'intervalos';
 let estadoAtual = null, preparando = true, resumoConferencia = null;
 const pagina = crypto.randomUUID();
 const presenca = new AbortController();
@@ -21,17 +21,37 @@ function atualizarBotoes() {
   $('requisito-impressao').hidden = !conferido;
   $('acoes-impressao').hidden = !conferido;
   $('conferir').classList.toggle('botao-principal', !conferido);
+  mostrarAbas();
   mostrarAndamento();
   $('campos').disabled = ocupado || pendente || encerrado;
   $('conferir').disabled = ocupado || pendente || !online || encerrado;
-  $('imprimir').disabled = !conferido || ocupado || pendente || !online || !impressora || encerrado || historico.some(item => ['envio_iniciado', 'incerto'].includes(item.situacao));
-  document.querySelectorAll('[data-conferencia]').forEach(botao => { botao.disabled = ocupado || pendente || !online || encerrado; });
+  $('imprimir').disabled = !conferido || ocupado || pendente || !online || !impressora || encerrado;
   $('parar').hidden = !ocupado;
   $('selecionar-impressora').disabled = ocupado || pendente || !online || encerrado;
   $('atualizar-impressoras').disabled = ocupado || pendente || !online || encerrado;
   $('lista-impressoras').disabled = ocupado || pendente || !online || encerrado;
   $('confirmar-impressora').disabled = ocupado || pendente || !online || encerrado || !$('lista-impressoras').value;
-  document.querySelectorAll('[data-modo]').forEach(botao => { botao.disabled = ocupado || pendente || encerrado; });
+  document.querySelectorAll('[data-aba]').forEach(botao => { botao.disabled = ocupado || pendente || encerrado; });
+}
+function mostrarAbas() {
+  const acoes = $('acoes-conferir');
+  const destino = $(modo === 'lista' ? 'rodape-lista' : 'rodape-intervalos');
+  if (acoes.parentElement !== destino) destino.append(acoes);
+  document.querySelectorAll('[data-aba]').forEach(botao => botao.setAttribute('aria-pressed', String(botao.dataset.aba === abaAtual)));
+  $('formulario').hidden = abaAtual === 'conferencia';
+  $('acoes-conferir').hidden = abaAtual === 'conferencia';
+  $('modo-intervalos').hidden = abaAtual !== 'intervalos';
+  $('modo-lista').hidden = abaAtual !== 'lista';
+  $('modo-conferencia').hidden = abaAtual !== 'conferencia';
+}
+function selecionarAba(aba) {
+  if (aba !== 'conferencia' && aba !== modo) {
+    modo = aba;
+    invalidar();
+  }
+  abaAtual = aba;
+  mostrarAbas();
+  document.querySelector('.rolagem-preparacao').scrollTop = 0;
 }
 function invalidar() {
   conferido = null;
@@ -84,64 +104,54 @@ function mostrarEstado(estado) {
   if (estado.ocupado) preparando = false;
   ocupado = estado.ocupado; impressora = estado.impressora;
   historico = estado.historico || [];
-  mostrarHistorico();
+  mostrarResultados();
   $('impressora').textContent = impressora || 'Nenhuma impressora selecionada.';
   $('aviso-impressora').textContent = estado.aviso_impressora || '';
-  $('atividade').replaceChildren();
-  for (const mensagem of estado.atividade.length ? estado.atividade : ['Nenhuma OP enviada nesta execução.']) {
-    const item = document.createElement('li'); item.textContent = mensagem; $('atividade').append(item);
-  }
   atualizarBotoes();
 }
 function mostrarAndamento() {
   if (!estadoAtual) return;
   const estado = estadoAtual;
-  const incertas = historico.filter(item => ['envio_iniciado', 'incerto'].includes(item.situacao)).length;
-  const novoLote = preparando && !ocupado && !incertas;
-  const fases = {pronto:'Pronto', imprimindo:'Em andamento', concluido:'Concluído', interrompido:'Interrompido', erro:'Conferir impressão'};
+  const novoLote = preparando && !ocupado;
+  const fases = {pronto:'Pronto', imprimindo:'Em andamento', concluido:'Concluído', interrompido:'Interrompido', erro:'Erro'};
   $('fase').textContent = novoLote ? (conferido ? 'Conferido' : 'Preparação') : (fases[estado.fase] || estado.fase);
   $('fase').classList.toggle('erro', !novoLote && estado.fase === 'erro');
   $('status').textContent = novoLote ? (conferido ? 'Lote pronto para imprimir.' : 'Aguardando conferência.') : estado.mensagem;
+  $('status').hidden = !novoLote && ocupado && Boolean(estado.atual) && estado.mensagem === `Enviando OP ${estado.atual} · setor ${estado.setor}`;
   $('resumo-progresso').hidden = novoLote || !estado.total;
-  $('ordem-atual').hidden = novoLote || !estado.atual;
-  $('ordem-atual').textContent = estado.atual ? `${ocupado ? 'OP em processamento' : 'Última OP processada'}: ${estado.atual} · setor ${estado.setor}` : '';
-  $('enviadas').textContent = novoLote ? 0 : estado.enviadas;
-  $('total').textContent = novoLote ? 0 : estado.total;
+  $('ordem-atual').hidden = novoLote || !ocupado || !estado.atual || !$('status').hidden;
+  $('rotulo-op-atual').textContent = ocupado ? 'Imprimindo OP' : 'Última OP processada';
+  $('numero-op-atual').textContent = estado.atual || '';
+  $('setor-op-atual').textContent = estado.atual ? `Setor ${estado.setor}` : '';
   $('progresso').max = novoLote ? 1 : (estado.total || 1);
   $('progresso').value = novoLote ? 0 : estado.enviadas;
   $('aviso-operacao').hidden = !ocupado;
 }
-function mostrarHistorico() {
-  const incertas = historico.filter(item => ['envio_iniciado', 'incerto'].includes(item.situacao)).length;
-  $('pendencias').hidden = ocupado || !incertas;
-  $('resumo-pendencias').textContent = `${incertas} OP(s) precisam de revisão. Confira a fila e o papel.`;
-  $('recuperacao').replaceChildren();
-  const rotulos = {pendente: 'Não iniciada', envio_iniciado: ocupado ? 'Envio em andamento' : 'Incerto: conferir fila e papel', incerto: 'Incerto: conferir fila e papel', concluido: 'Envio concluído pelo fluxo', conferido_enviado: 'Envio confirmado manualmente', conferido_nao_enviado: 'Não enviado: conferido manualmente'};
-  if (!historico.length) { $('recuperacao').textContent = 'Nenhum lote salvo nesta versão.'; return; }
+function mostrarResultados() {
+  $('resumo-resultados').dataset.finalizado = String(!ocupado && ['concluido', 'interrompido', 'erro'].includes(estadoAtual.fase));
+  const lista = $('resultados'), topo = lista.scrollTop;
+  const contagem = {concluidas:0, pendentes:0, erros:0};
+  lista.replaceChildren();
   for (const registro of historico) {
-    const linha = document.createElement('div'); linha.className = 'registro-recuperacao';
+    const concluida = ['concluido', 'conferido_enviado'].includes(registro.situacao);
+    const executando = ocupado && registro.situacao === 'envio_iniciado';
+    const erro = !executando && ['envio_iniciado', 'incerto'].includes(registro.situacao);
+    const tipo = concluida ? 'concluidas' : erro ? 'erros' : 'pendentes';
+    contagem[tipo]++;
+    const linha = document.createElement('article'); linha.className = 'resultado';
+    const etiqueta = document.createElement('span'); etiqueta.className = `situacao ${tipo}`;
+    etiqueta.textContent = concluida ? 'Concluída' : erro ? 'Erro' : executando ? 'Em andamento' : 'Pendente';
     const descricao = document.createElement('p');
-    descricao.textContent = `OP ${registro.numero} · setor ${registro.setor} · ${rotulos[registro.situacao] || registro.situacao} · ${registro.impressora || 'Impressora do console'} · ${new Date(registro.atualizado_em).toLocaleString('pt-BR')}`;
-    linha.append(descricao);
-    if (['envio_iniciado', 'incerto'].includes(registro.situacao)) {
-      for (const [resultado, texto] of [['conferido_enviado', 'Conferi: foi enviado'], ['conferido_nao_enviado', 'Conferi: não foi enviado']]) {
-        const botao = document.createElement('button'); botao.type = 'button'; botao.textContent = texto;
-        botao.dataset.conferencia = registro.id;
-        botao.onclick = async () => {
-          if (ocupado || pendente || !online || encerrado) return;
-          if (!confirm(`Você conferiu a fila e o papel da OP ${registro.numero}, setor ${registro.setor}? ${texto}. Esta ação registra sua conferência e não imprime.`)) return;
-          pendente = true; atualizarBotoes(); $('erro-recuperacao').textContent = '';
-          try {
-            mostrarEstado(await api('/api/conferir-impressao', {id: registro.id, resultado, conferi_fila_e_papel: true}));
-            invalidar();
-          } catch (erro) { $('erro-recuperacao').textContent = erro.message; }
-          finally { pendente = false; atualizarBotoes(); }
-        };
-        linha.append(botao);
-      }
-    }
-    $('recuperacao').append(linha);
+    const numero = document.createElement('strong'); numero.textContent = registro.numero;
+    const detalhe = document.createElement('span');
+    detalhe.textContent = ` · setor ${registro.setor} · ${concluida ? 'Envio concluído.' : erro ? 'O processamento não foi concluído.' : executando ? 'Enviando ao Sisplan…' : 'Envio não iniciado.'}`;
+    descricao.append(numero, detalhe); linha.append(etiqueta, descricao); lista.append(linha);
   }
+  if (!historico.length) {
+    const vazio = document.createElement('p'); vazio.className = 'dica'; vazio.textContent = 'Nenhuma execução iniciada.'; lista.append(vazio);
+  }
+  for (const [tipo, quantidade] of Object.entries(contagem)) $(`resultado-${tipo}`).textContent = quantidade;
+  lista.scrollTop = topo;
 }
 async function carregarImpressoras() {
   if (pendente || ocupado || encerrado || !online) return;
@@ -228,13 +238,14 @@ $('formulario').onsubmit = async evento => {
     $('resumo').textContent = `${resultado.total} OPs · ${resultado.lotes.length} setor(es)`;
     $('imprimir').textContent = `Imprimir ${resultado.total} OPs`;
 
-    $('cabecalho-conferencia').hidden = false;
+    selecionarAba('conferencia');
+    atualizarBotoes();
     $('titulo-conferencia').focus();
   } catch (erro) { conferido = null; resumoConferencia = null; $('mensagem').textContent = erro.message; }
   finally { pendente = false; atualizarBotoes(); }
 };
 $('imprimir').onclick = async () => {
-  if (!conferido || pendente || ocupado || encerrado || historico.some(item => ['envio_iniciado', 'incerto'].includes(item.situacao))) return;
+  if (!conferido || pendente || ocupado || encerrado) return;
   pendente = true; atualizarBotoes(); $('mensagem').textContent = '';
   try { const estado = await api('/api/iniciar', {...conferido, impressora}); conferido = null; preparando = false; $('titulo-conferencia').textContent = 'Lote enviado'; mostrarEstado(estado); }
   catch (erro) { conferido = null; $('mensagem').textContent = erro.message + ' Confira o andamento antes de preparar outro lote.'; }
@@ -251,6 +262,7 @@ $('encerrar').onclick = async () => {
     await api('/api/encerrar', {}); encerrado = true; online = false; atualizarBotoes();
     presenca.abort();
     $('encerrar').disabled = true; $('parar').hidden = true;
+    $('status').hidden = false;
     $('status').textContent = desktop ? 'Encerrando após a OP atual. Aguarde a janela fechar.' : ocupado ? 'Encerrando após a OP em andamento. Você pode fechar esta aba.' : 'Programa encerrado. Você pode fechar esta aba.';
     $('conexao').textContent = 'Painel encerrado';
   } catch (erro) { $('mensagem').textContent = erro.message; }
@@ -272,18 +284,9 @@ window.addEventListener('pagehide', () => {
   }
   presenca.abort();
 });
-document.querySelectorAll('[data-modo]').forEach(botao => { botao.onclick = () => {
-  modo = botao.dataset.modo;
-  document.querySelectorAll('[data-modo]').forEach(outro => outro.setAttribute('aria-pressed', String(outro === botao)));
-  $('modo-intervalos').hidden = modo !== 'intervalos'; $('modo-lista').hidden = modo !== 'lista'; invalidar();
-}; });
+document.querySelectorAll('[data-aba]').forEach(botao => { botao.onclick = () => selecionarAba(botao.dataset.aba); });
 $('campos').addEventListener('input', invalidar);
 $('adicionar').onclick = adicionarIntervalo;
-$('revisar-pendencias').onclick = () => {
-  $('historico-painel').open = true;
-  $('titulo-recuperacao').focus();
-  $('historico-painel').scrollIntoView({block:'start', behavior:'auto'});
-};
 const tema = window.NunesTema.iniciar({controle:$('tema'),chave:'nunes-impressao-tema',cookie:true});
 $('tema').addEventListener('click', () => { document.documentElement.dataset.temaAnimado = '1'; });
 if (desktop) {

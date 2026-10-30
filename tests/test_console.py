@@ -65,14 +65,14 @@ class TestConsole(unittest.TestCase):
         self.teclas.assert_not_called()
         self.app.window.return_value.OK.click.assert_not_called()
 
-    def test_falha_antes_do_clique_nao_repete_e_orienta_conferencia(self):
+    def test_falha_antes_do_clique_nao_repete_e_identifica_op(self):
         self.combo.selected_text.return_value = 'Outra fila'
         with self.assertRaises(RuntimeError) as captura:
             main.processar_ordem(self.app, self.campos, '000123')
         self.combo.select.assert_called_once()
         self.app.window.return_value.OK.click.assert_not_called()
         self.fechar_menu.assert_called_once_with(self.app)
-        self.assertIn('Confira a OP 000123', str(captura.exception))
+        self.assertIn('Falha no fluxo de impressão da OP 000123', str(captura.exception))
 
     def test_falha_apos_clique_nao_repete_envio_incerto(self):
         # A espera falha após enviar; uma repetição teria sucesso e duplicaria o envio.
@@ -83,7 +83,7 @@ class TestConsole(unittest.TestCase):
         self.campos['numero'].set_text.assert_called_once()
         self.fechar_menu.assert_called_once_with(self.app)
         self.assertIn('sem repetição automática', str(captura.exception))
-        self.assertIn('Confira a OP 000123', str(captura.exception))
+        self.assertIn('Falha no fluxo de impressão da OP 000123', str(captura.exception))
 
     def test_console_para_ordens_e_setores_e_conta_apenas_sucesso(self):
         self.obter_lotes.return_value = [
@@ -103,8 +103,8 @@ class TestConsole(unittest.TestCase):
         self.assertEqual(chamada.kwargs['setor'], '10')
         self.assertIsNotNone(chamada.kwargs['ocorrido_em'].tzinfo)
         mensagens = '\n'.join(str(chamada.args[0]) for chamada in self.imprimir.call_args_list)
-        self.assertIn('Confira a OP 000002', mensagens)
-        self.assertIn('fila da impressora e no papel', mensagens)
+        self.assertIn('Falha no fluxo de impressão da OP 000002', mensagens)
+        self.assertIn('sem repetição automática', mensagens)
 
     def test_console_concluido_retorna_sucesso(self):
         self.obter_lotes.return_value = [{'setor': '10', 'ordens': ['000001']}]

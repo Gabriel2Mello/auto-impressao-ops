@@ -138,7 +138,7 @@ test('mudanças do processamento atualizam a tela e o estado final permanece est
   assert.equal(ui.obter('parar').hidden, false);
   ui.enviar(`data: ${JSON.stringify({...ui.estado, fase: 'concluido', total: 2, enviadas: 2})}\n\n`);
   await avancar();
-  assert.equal(ui.obter('enviadas').textContent, 2);
+  assert.equal(ui.obter('progresso').value, 2);
   assert.equal(ui.obter('campos').disabled, false);
   assert.equal(ui.obter('parar').hidden, true);
   const anterior = ui.alteracoes();
@@ -211,22 +211,17 @@ test('início inclui a impressora exibida e bloqueia troca durante o lote', asyn
   ui.eventos.pagehide();
 });
 
-test('incerteza persistida bloqueia impressão e só libera após conferência explícita', async () => {
+test('falha anterior aparece como erro e permite novo lote explícito sem conferência manual', async () => {
   const ui = painel(); await avancar();
-  ui.estado.historico = [{id: 'incerto-1', numero: '000123', setor: '10', situacao: 'envio_iniciado', impressora: 'Fila sintética', atualizado_em: '2026-10-21T10:00:00+00:00'}];
+  ui.estado.historico = [{numero:'000123',setor:'10',situacao:'envio_iniciado'}];
   ui.enviar(`data: ${JSON.stringify(ui.estado)}\n\n`); await avancar();
-  await ui.obter('formulario').onsubmit({preventDefault() {}});
-  assert.equal(ui.obter('imprimir').disabled, true);
+  assert.equal(ui.obter('resultado-erros').textContent, 1);
+  assert.equal(ui.requisicoes.some(item => item.url === '/api/iniciar'), false);
+  await ui.obter('formulario').onsubmit({preventDefault(){}});
+  assert.equal(ui.obter('imprimir').disabled, false);
   await ui.obter('imprimir').onclick();
-  assert.equal(ui.requisicoes.some(item => item.url === '/api/iniciar'), false);
-  const botao = ui.obter('recuperacao').children[0].children[1];
-  ui.respostasConfirmacao.push(false); await botao.onclick();
+  assert.equal(ui.requisicoes.filter(item => item.url === '/api/iniciar').length, 1);
   assert.equal(ui.requisicoes.some(item => item.url === '/api/conferir-impressao'), false);
-  ui.respostasConfirmacao.push(true); await botao.onclick();
-  const requisicao = ui.requisicoes.find(item => item.url === '/api/conferir-impressao');
-  assert.equal(JSON.parse(requisicao.opcoes.body).conferi_fila_e_papel, true);
-  assert.equal(JSON.parse(requisicao.opcoes.body).resultado, 'conferido_enviado');
-  assert.equal(ui.requisicoes.some(item => item.url === '/api/iniciar'), false);
   ui.eventos.pagehide();
 });
 
@@ -254,7 +249,7 @@ test('falha ao salvar tema no desktop informa erro e impede Encerrar pela págin
 });
 
 
-test('progresso aparece durante o lote e pendências continuam acessíveis no histórico recolhido', async () => {
+test('progresso acompanha o lote e a lista distingue conclusões, pendências e erros', async () => {
   const ui = painel(); await avancar();
   ui.enviar(`data: ${JSON.stringify(ui.estado)}\n\n`); await avancar();
   assert.equal(ui.obter('resumo-progresso').hidden, true);
@@ -263,10 +258,8 @@ test('progresso aparece durante o lote e pendências continuam acessíveis no hi
   assert.equal(ui.obter('resumo-progresso').hidden, false);
   assert.equal(ui.obter('aviso-operacao').hidden, false);
   ui.enviar(`data: ${JSON.stringify({...ui.estado, fase:'erro', historico:[{numero:'123456', setor:'10', situacao:'incerto'}]})}\n\n`); await avancar();
-  assert.equal(ui.obter('pendencias').hidden, false);
-  ui.obter('historico-painel').scrollIntoView = () => {};
-  ui.obter('revisar-pendencias').onclick();
-  assert.equal(ui.obter('historico-painel').open, true);
+  assert.equal(ui.obter('resultado-erros').textContent, 1);
+  assert.equal(ui.obter('resultados').children[0].children[0].textContent, 'Erro');
   ui.eventos.pagehide();
 });
 
@@ -293,5 +286,67 @@ test('novo lote não mistura progresso anterior e o resumo enviado permanece vis
   assert.equal(ui.obter('fase').textContent,'Preparação');
   assert.equal(ui.obter('resumo-progresso').hidden,true);
   assert.equal(ui.obter('tabela-conferencia').hidden,true);
+  ui.eventos.pagehide();
+});
+
+test('resultados preservam a leitura e contam estados sem duplicar OPs', async () => {
+  const ui = painel(); await avancar();
+  ui.obter('resultados').scrollTop = 120;
+  ui.enviar(`data: ${JSON.stringify({...ui.estado, ocupado:true, historico:[
+    {numero:'1',setor:'10',situacao:'concluido'},
+    {numero:'2',setor:'10',situacao:'envio_iniciado'},
+    {numero:'3',setor:'20',situacao:'pendente'}]})}\n\n`); await avancar();
+  assert.equal(ui.obter('resultado-concluidas').textContent,1);
+  assert.equal(ui.obter('resultado-pendentes').textContent,2);
+  assert.equal(ui.obter('resultado-erros').textContent,0);
+  assert.equal(ui.obter('resultados').children.length,3);
+  assert.equal(ui.obter('resultados').scrollTop,120);
+  assert.equal(ui.obter('resultados').children[1].children[0].textContent,'Em andamento');
+  ui.eventos.pagehide();
+});
+
+test('conferir abre a aba de conferência e navegar preserva o lote até mudar a entrada', async () => {
+  const ui = painel(); await avancar();
+  ui.enviar(`data: ${JSON.stringify(ui.estado)}\n\n`); await avancar();
+  assert.equal(ui.obter('modo-conferencia').hidden, true);
+  await ui.obter('formulario').onsubmit({preventDefault(){}});
+  assert.equal(ui.obter('modo-conferencia').hidden, false);
+  assert.equal(ui.obter('formulario').hidden, true);
+  assert.equal(ui.obter('acoes-conferir').hidden, true);
+  assert.equal(ui.obter('imprimir').disabled, false);
+  vm.runInNewContext('selecionarAba("intervalos")', ui.sandbox);
+  assert.equal(ui.obter('formulario').hidden, false);
+  vm.runInNewContext('selecionarAba("conferencia")', ui.sandbox);
+  assert.equal(ui.obter('imprimir').disabled, false);
+  vm.runInNewContext('selecionarAba("lista")', ui.sandbox);
+  assert.equal(ui.obter('imprimir').disabled, true);
+  assert.equal(ui.obter('modo-lista').hidden, false);
+  ui.respostas.set('/api/conferir', {ok:false,json:async()=>({erro:'Entrada inválida'})});
+  await ui.obter('formulario').onsubmit({preventDefault(){}});
+  assert.equal(ui.obter('modo-conferencia').hidden, true);
+  assert.equal(ui.obter('mensagem').textContent, 'Entrada inválida');
+  ui.eventos.pagehide();
+});
+
+test('OP atual tem destaque único e avisos de parada continuam visíveis', async () => {
+  const ui = painel(); await avancar();
+  const estado = {...ui.estado, ocupado:true, atual:'000030',setor:'10',fase:'imprimindo',mensagem:'Enviando OP 000030 · setor 10'};
+  ui.enviar(`data: ${JSON.stringify(estado)}\n\n`); await avancar();
+  assert.equal(ui.obter('status').hidden,true);
+  assert.equal(ui.obter('ordem-atual').hidden,false);
+  assert.equal(ui.obter('numero-op-atual').textContent,'000030');
+  assert.equal(ui.obter('setor-op-atual').textContent,'Setor 10');
+  ui.enviar(`data: ${JSON.stringify({...estado,mensagem:'Parada solicitada. Aguardando a OP em andamento.'})}\n\n`); await avancar();
+  assert.equal(ui.obter('status').hidden,false);
+  assert.match(ui.obter('status').textContent,/Parada solicitada/);
+  ui.eventos.pagehide();
+});
+
+test('contorno dos cartões só finaliza após conclusão, parada ou erro', async () => {
+  const ui = painel(); await avancar();
+  for (const [fase,ocupado,esperado] of [['pronto',false,'false'],['imprimindo',true,'false'],['concluido',false,'true'],['imprimindo',true,'false'],['erro',false,'true'],['interrompido',false,'true']]) {
+    ui.enviar(`data: ${JSON.stringify({...ui.estado,fase,ocupado})}\n\n`); await avancar();
+    assert.equal(ui.obter('resumo-resultados').dataset.finalizado,esperado);
+  }
   ui.eventos.pagehide();
 });

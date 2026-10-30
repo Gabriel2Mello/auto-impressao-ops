@@ -28,18 +28,23 @@ Uma instância web anterior precisa ser encerrada normalmente antes de abrir o d
 ## Interface e contratos preservados
 
 Layout baseado em Cofre/Busca e Move: preparação e conferência à esquerda,
-impressora em faixa compacta acima da entrada e andamento à direita. Atividade
-e histórico ficam recolhidos junto ao andamento, com divisórias sutis e sem caixas.
+impressora em faixa compacta acima da entrada e Resultados à direita. O resumo
+mostra Concluídas, Pendentes e Erros; a lista por OP tem rolagem independente.
+À esquerda, entrada e conferência também rolam em área própria, abaixo dos
+seletores Por intervalo, Lista de OPs e Conferência, que permanecem visíveis.
+Conferir OPs valida a entrada e abre a aba Conferência; navegar de volta à mesma
+forma de entrada preserva o lote. Editar os dados ou trocar a forma invalida a conferência.
 Em larguras estreitas o andamento fica após a conferência. Tema no cabeçalho e
 Encerrar no rodapé. O resumo enviado permanece visível até preparar outro lote;
-a nova preparação não mostra o progresso da execução anterior. Pendências de envio têm alerta e atalho para revisão.
+a nova preparação não mostra o progresso da execução anterior. O último lote permanece disponível na lista de resultados.
 Em larguras estreitas, os painéis ficam empilhados. A rolagem usa indicador
 sobreposto, sem reservar faixa. A lista de impressoras permanece em diálogo.
 
 Conferir OPs continua obrigatório antes de Imprimir lote. Alterações invalidam
 a conferência; a impressora permanece fixa no lote e sua preferência é salva
 apenas após o primeiro envio concluído. Falha não provoca repetição automática.
-O histórico de incertezas e a conferência da fila/papel permanecem disponíveis.
+O painel não exige conferência manual de fila ou papel. Após uma falha, um novo
+lote depende de nova solicitação explícita. O diário conserva os registros.
 
 X e Encerrar pedem confirmação. A OP em andamento e a gravação do diário terminam
 antes de a janela desaparecer; a sincronização auxiliar termina depois, no processo,
@@ -106,7 +111,7 @@ Abra **Testar Interface Impressao OPs.cmd** ou execute
 A janela identifica **Demonstração** e pode ficar aberta junto da aplicação normal.
 Use **Preencher exemplo**, **Conferir OPs** e **Imprimir 5 OPs** para ver o progresso
 simulado. O seletor **Resultado simulado** permite também provocar uma falha e
-explorar o histórico de pendências. A parada e o seletor de impressora podem ser testados.
+explorar os resultados por OP. A parada e o seletor de impressora podem ser testados.
 
 Nenhum acesso ao Sisplan, às filas reais, à exclusividade operacional ou à central
 de estatísticas é iniciado. Impressoras, diário e preferências são isolados em uma

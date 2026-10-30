@@ -29,16 +29,20 @@
         <p id="impressora" class="nome-impressora">Verificando a impressora…</p>
         <p id="aviso-impressora" class="mensagem" role="status"></p>
         <button id="selecionar-impressora" type="button" disabled aria-label="Alterar impressora">Alterar</button>
+        <p class="orientacoes">Use a empresa 002, relatório de facção, aba <strong>Envio</strong>. A automação processa uma OP por vez.</p>
       </section>
 
   <div class="principal">
     <div class="preparacao">
     <section class="cartao entrada" aria-labelledby="titulo-entrada">
       <div class="titulo-secao"><h2 id="titulo-entrada">Preparar lote</h2></div>
-      <div class="modos" role="group" aria-label="Forma de informar as ordens">
-        <button type="button" data-modo="intervalos" aria-pressed="true">Por intervalo</button>
-        <button type="button" data-modo="lista" aria-pressed="false">Lista de OPs</button>
+      <div class="modos" role="group" aria-label="Preparação e conferência do lote">
+        <button type="button" data-modo="intervalos" data-aba="intervalos" aria-controls="modo-intervalos" aria-pressed="true">Por intervalo</button>
+        <button type="button" data-modo="lista" data-aba="lista" aria-controls="modo-lista" aria-pressed="false">Lista de OPs</button>
+        <button type="button" data-aba="conferencia" aria-controls="modo-conferencia" aria-pressed="false">Conferência</button>
       </div>
+    </section>
+    <div class="rolagem-preparacao" tabindex="0" role="region" aria-label="Entrada e conferência das OPs">
       <form id="formulario">
         <fieldset id="campos">
           <div id="modo-intervalos">
@@ -49,49 +53,41 @@
             <label for="ordens">Ordens de produção</label>
             <textarea id="ordens" rows="5" maxlength="60000" placeholder="123456&#10;123457&#10;123458" aria-describedby="dica-lista"></textarea>
             <p id="dica-lista" class="dica">Uma OP por linha, separadas por espaço ou vírgula.</p>
-            <div class="setor-lista"><label for="setor-lista">Setor</label><input id="setor-lista" inputmode="numeric" maxlength="6" value="10" autocomplete="off"></div>
+            <div id="rodape-lista" class="rodape-lista"><div class="setor-lista"><label for="setor-lista">Setor</label><input id="setor-lista" inputmode="numeric" maxlength="6" value="10" autocomplete="off"></div></div>
           </div>
         </fieldset>
-        <p id="mensagem" class="mensagem" role="alert"></p>
       </form>
-    </section>
 
-    <div class="acoes conferir-lote"><button id="conferir" type="submit" form="formulario" class="botao-principal" disabled>Conferir OPs</button></div>
-  <section class="cartao conferencia" aria-labelledby="titulo-conferencia">
+    <div id="rodape-intervalos"><div id="acoes-conferir" class="acoes conferir-lote"><button id="conferir" type="submit" form="formulario" class="botao-principal" disabled>Conferir OPs</button></div></div>
+  <section id="modo-conferencia" class="cartao conferencia" hidden aria-labelledby="titulo-conferencia">
     <div id="cabecalho-conferencia" class="titulo-secao" hidden><div><h2 id="titulo-conferencia" tabindex="-1">Conferência</h2><p id="resumo" class="dica"></p></div><div id="acoes-impressao" class="acoes" hidden><button id="imprimir" type="button" class="botao-principal" disabled>Imprimir lote</button></div></div>
     <p id="requisito-impressao" class="dica requisito" hidden>Antes de imprimir, abra o Sisplan da empresa 002 no relatório de facção, aba <strong>Envio</strong>.</p>
     <div id="tabela-conferencia" class="tabela" hidden><table><thead><tr><th scope="col">Setor</th><th scope="col">Quantidade</th><th scope="col">Ordens de produção</th></tr></thead><tbody id="lotes"><tr><td colspan="3" class="vazio">As OPs aparecerão aqui depois da conferência.</td></tr></tbody></table></div>
     <p id="conferencia-vazia" class="vazio">Confira as OPs para revisar o lote antes de imprimir.</p>
 
   </section>
+    <p id="mensagem" class="mensagem" role="alert"></p>
+    </div>
     </div>
     <aside class="lateral" aria-label="Acompanhamento da impressão">
+        <div class="titulo-secao"><h2 id="titulo-andamento">Resultados</h2><span id="fase" class="etiqueta">Pronto</span></div>
+      <div id="resumo-resultados" class="indicadores" data-finalizado="false" aria-label="Resumo dos resultados">
+        <div><strong id="resultado-concluidas">0</strong><span>Concluídas</span></div>
+        <div><strong id="resultado-pendentes">0</strong><span>Pendentes</span></div>
+        <div><strong id="resultado-erros">0</strong><span>Erros</span></div>
+      </div>
       <section class="cartao andamento" aria-labelledby="titulo-andamento">
-        <div class="titulo-secao"><h2 id="titulo-andamento">Andamento</h2><span id="fase" class="etiqueta">Pronto</span></div>
+        <div class="estado-execucao">
         <p id="status" class="status" role="status">Aguardando conferência.</p>
-        <p id="ordem-atual" class="muted" hidden></p>
+        <div id="ordem-atual" class="op-atual" role="status" hidden><span id="rotulo-op-atual" class="dica">Imprimindo OP</span><div class="identificacao-op"><strong id="numero-op-atual"></strong><span id="setor-op-atual"></span></div></div>
+        </div>
         <div id="resumo-progresso" hidden>
           <progress id="progresso" value="0" max="1" aria-label="OPs enviadas para impressão"></progress>
-          <p class="contagem"><strong id="enviadas">0</strong> de <strong id="total">0</strong> OPs enviadas</p>
-          <p class="dica papel">Confira a saída em papel na impressora.</p>
         </div>
-        <p id="aviso-operacao" class="orientacao" hidden>Impressão em andamento. Aguarde sem usar o teclado ou o mouse.</p>
-        <div class="acoes enviar"><button id="parar" type="button" hidden>Parar após a OP atual</button></div>
+        <div class="controles-execucao"><p id="aviso-operacao" class="orientacao" hidden>Aguarde sem usar teclado ou mouse.</p><button id="parar" type="button" hidden>Parar após a OP atual</button></div>
       </section>
-      <div id="pendencias" class="alerta-pendencias" role="status" hidden>
-        <p id="resumo-pendencias">Há OPs que precisam de revisão.</p>
-        <button id="revisar-pendencias" type="button">Revisar pendências</button>
-      </div>
-  <section class="suporte" aria-label="Registros da impressão">
-    <details id="atividade-painel"><summary>Atividade da execução</summary><ol id="atividade"><li>Nenhuma OP enviada nesta execução.</li></ol></details>
-    <details id="historico-painel" class="recuperacao"><summary id="titulo-recuperacao">Histórico de lotes</summary>
-      <p class="dica">Último lote salvo neste computador e incertezas anteriores. Após uma interrupção, confira a fila e o papel antes de registrar o resultado. Nenhuma OP é retomada automaticamente.</p>
-      <div id="recuperacao"></div><p id="erro-recuperacao" class="mensagem" role="alert"></p>
-    </details>
-
-    <p id="conexao" class="dica" role="status">Conectando ao painel local…</p>
-  </section>
-      <details class="orientacoes"><summary>Orientações do Sisplan</summary><p>Use a empresa 002, relatório de facção, aba <strong>Envio</strong>. A automação processa uma OP por vez.</p></details>
+      <div id="resultados" class="rolagem-resultados" tabindex="0" role="region" aria-label="Resultados por OP"><p class="dica">Nenhuma execução iniciada.</p></div>
+      <p id="conexao" class="dica" role="status">Conectando ao painel local…</p>
     </aside>
   </div>
 </main>

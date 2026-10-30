@@ -49,8 +49,6 @@ def processar_ordem(app, campos, numero, impressora=None):
         raise RuntimeError(
             f'Falha no fluxo de impressão da OP {numero}: {e} '
             'Execução interrompida, sem repetição automática. '
-            f'Confira a OP {numero} na fila da impressora e no papel '
-            'antes de iniciar outra execução.'
         ) from e
 
 

@@ -1,8 +1,8 @@
 'use strict';
-// Adaptado de Busca e Move: inclui o registro de atividade da Impressão.
+// Adaptado de Busca e Move: inclui a lista de resultados da Impressão.
 (() => {
   if (!window.ResizeObserver || !window.PointerEvent) return;
-  const alvos = [document.documentElement, ...document.querySelectorAll('#ordens,#atividade,.rolagem-resultados,dialog')];
+  const alvos = [document.documentElement, ...document.querySelectorAll('#ordens,.rolagem-preparacao,.rolagem-resultados,dialog')];
   let quadro = 0;
   const barras = alvos.map(alvo => {
     const trilho = document.createElement('div'), polegar = document.createElement('div');
@@ -14,7 +14,7 @@
     (alvo.matches('dialog') ? alvo : document.body).append(trilho);
     alvo.classList.add('rolagem-sobreposta');
     const pagina = alvo === document.documentElement;
-    const margemResultados = alvo.classList.contains('rolagem-resultados');
+    const margemExterna = alvo.matches('.rolagem-preparacao,.rolagem-resultados');
     let percurso = 0, maximo = 0, arraste = null;
     function atualizar() {
       const rect = alvo.getBoundingClientRect();
@@ -32,8 +32,8 @@
       const larguraBarra = trilho.getBoundingClientRect().width;
       const limiteDireito = document.documentElement.clientWidth - larguraBarra;
       trilho.style.top = topo + 'px';
-      // Nos resultados, ocupa a margem que já existe fora da região rolável.
-      trilho.style.left = (pagina ? limiteDireito : margemResultados
+      // Nas colunas, ocupa o espaço já existente fora da região rolável.
+      trilho.style.left = (pagina ? limiteDireito : margemExterna
         ? Math.min(rect.right, limiteDireito)
         : rect.right - alvo.clientLeft - larguraBarra) + 'px';
       trilho.style.height = visivel + 'px';

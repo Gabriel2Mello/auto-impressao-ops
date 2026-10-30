@@ -59,24 +59,24 @@ class DiarioImpressao:
                 yield banco
         except (OSError, sqlite3.Error) as erro:
             raise RuntimeError('Não foi possível persistir ou ler o diário de impressão. '
-                               'Nenhum envio pode ser repetido sem conferir a fila e o papel.') from erro
+                               'A execução foi interrompida.') from erro
         finally:
             if banco is not None:
                 banco.close()
 
-    def consultar(self):
+    def consultar(self, apenas_ultimo=False):
         with self.conectar() as banco:
             # O último lote inteiro e todas as incertezas anteriores continuam visíveis.
             ultima = banco.execute('SELECT execucao FROM envios ORDER BY rowid DESC LIMIT 1').fetchone()
             if ultima is None:
                 return []
             return [dict(linha) for linha in banco.execute("""SELECT * FROM envios
-                WHERE execucao=? OR situacao IN ('envio_iniciado','incerto') ORDER BY rowid""", (ultima[0],))]
+                WHERE execucao=? OR (?=0 AND situacao IN ('envio_iniciado','incerto')) ORDER BY rowid""", (ultima[0], int(apenas_ultimo)))]
 
-    def iniciar(self, lotes, impressora=''):
+    def iniciar(self, lotes, impressora='', exigir_conferencia=True):
         execucao = uuid4().hex
         with self.conectar() as banco:
-            if banco.execute("SELECT 1 FROM envios WHERE situacao IN ('envio_iniciado','incerto') LIMIT 1").fetchone():
+            if exigir_conferencia and banco.execute("SELECT 1 FROM envios WHERE situacao IN ('envio_iniciado','incerto') LIMIT 1").fetchone():
                 raise RuntimeError('Existe impressão incerta. Confira a fila e o papel e registre a conferência antes de iniciar outro lote.')
             for lote in lotes:
                 for numero in lote['ordens']:

@@ -54,18 +54,18 @@ A confirmação de saída usa o aviso padrão do navegador, também exibido ao r
 
 O acompanhamento usa uma conexão contínua que envia o estado apenas quando há mudanças. Quando o painel está parado, não há consultas periódicas de estado nem redesenho da tela. Mensagens internas mantêm a conexão aberta para detectar o fechamento da aba, sem alterar a interface.
 
-As OPs recebem no mínimo seis dígitos. Repetições da mesma OP no mesmo setor são eliminadas na execução; uma mesma OP em setores diferentes permanece. Limite: 5.000 OPs por execução e 100 intervalos. A conferência exibe até 100 números de cada lote e informa quantos não estão visíveis; o lote completo é processado. A atividade mantém os últimos 50 envios da execução em memória. O diário persistente da E9 guarda o lote completo e as incertezas, sem retomada automática. O histórico acumulado de métricas fica separado, conforme a seção Estatísticas no Hub Nunes.
+As OPs recebem no mínimo seis dígitos. Repetições da mesma OP no mesmo setor são eliminadas na execução; uma mesma OP em setores diferentes permanece. Limite: 5.000 OPs por execução e 100 intervalos. A conferência exibe até 100 números de cada lote e informa quantos não estão visíveis; o lote completo é processado. Resultados apresenta todas as OPs do último lote, com contadores de concluídas, pendentes e erros. O diário persistente da E9 guarda o lote completo e as incertezas, sem retomada automática. O histórico acumulado de métricas fica separado, conforme a seção Estatísticas no Hub Nunes.
 
-Durante a execução, deixe teclado e mouse livres para a automação. O painel utiliza a sequência de campos e atalhos existente em `main.py` e `src/handle_app.py`. Na interface web e no console, cada OP tem **uma tentativa**: uma falha pode acontecer após o envio e interrompe o lote sem repetição automática. Confira a última OP e o papel antes de preparar outra execução. O contador indica envios concluídos pelo fluxo de automação; não confirma a saída física. Erros técnicos ficam em `impressao.log`.
+Durante a execução, deixe teclado e mouse livres para a automação. O painel utiliza a sequência de campos e atalhos existente em `main.py` e `src/handle_app.py`. Na interface web e no console, cada OP tem **uma tentativa**: uma falha pode acontecer após o envio e interrompe o lote sem repetição automática. O contador indica envios concluídos pelo fluxo de automação; não confirma a saída física. Erros técnicos ficam em `impressao.log`.
 
-O modo de console mantém `MODO_ENTRADA` em `main.py` e a leitura de `ordem_producao.txt` no modo `arquivo`. Desde a E2 (20/10/2026), qualquer falha interrompe também as OPs e os setores seguintes, identifica a OP afetada e orienta conferir a fila da impressora e o papel antes de iniciar outra execução. O console retorna código 1 em caso de falha e 0 ao concluir ou quando não há OPs, permitindo ao contrato do Hub registrar o erro. Não há repetição automática nem parâmetro para habilitá-la no executor compartilhado.
+O modo de console mantém `MODO_ENTRADA` em `main.py` e a leitura de `ordem_producao.txt` no modo `arquivo`. Desde a E2 (20/10/2026), qualquer falha interrompe também as OPs e os setores seguintes, identifica a OP afetada e informa a interrupção sem repetição automática. O console retorna código 1 em caso de falha e 0 ao concluir ou quando não há OPs, permitindo ao contrato do Hub registrar o erro. Não há repetição automática nem parâmetro para habilitá-la no executor compartilhado.
 
 ## Visual e implementação
 
 Visual adaptado ao [guia de telas Nunes](../estrutura-nunes/identidade-visual/interfaces/guia-telas-automacoes.md),
 com Cofre e Busca e Move como referências: preparação/conferência à esquerda,
 impressora em faixa compacta acima da preparação e andamento à direita.
-Atividade e histórico ficam recolhidos junto ao andamento. Seções sem caixas,
+Resultados reúne uma lista por OP com rolagem própria e resumo fixo. Seções sem caixas,
 com divisórias sutis; em janelas menores as duas áreas ficam empilhadas. Tema no cabeçalho e Encerrar com ícone no
 rodapé. Temas claro/escuro, com escuro por padrão e preferência persistida.
 O ícone coração com N conserva a cor `#475569`. A assinatura **g2mello · Essencial**
@@ -176,17 +176,17 @@ de cada tentativa. O diário fica em `%LOCALAPPDATA%\Nunes\ImpressaoOPs\execucoe
 `NUNES_OPS_DADOS` permite escolher outra pasta, inclusive temporária para testes.
 Ele começa nesta versão e não importa métricas como comprovantes de impressão.
 
-**Histórico e recuperação** exibe o último lote inteiro e todas as incertezas
-anteriores, com OP, setor, impressora e horário. “Não iniciada” permanece
-distinta de “Envio concluído pelo fluxo” e “Incerto”. Um início sem conclusão,
-inclusive por término abrupto, bloqueia novos lotes antes de enviar outra OP.
+**Resultados** exibe o último lote inteiro com OP, setor e situação. Concluídas
+indica envios concluídos pela automação; Pendentes inclui OPs ainda não concluídas
+sem erro; Erros inclui tentativas sem conclusão registrada. A lista tem rolagem
+própria e mantém a posição durante atualizações. O painel não exige confirmação
+manual de papel ou fila. Um novo lote conferido pode ser solicitado após falha,
+sem retomar nem repetir automaticamente o lote anterior. Registros antigos
+continuam preservados no diário. O console mantém sua regra de recuperação.
 Falha ao salvar o início impede o envio; falha ao salvar a conclusão conserva
 a incerteza. Arquivo inválido ou indisponível bloqueia a operação, sem apagá-lo.
 
-Confira a fila **e o papel**. Use **Conferi: foi enviado** ou **Conferi: não foi
-enviado**, confirmando a decisão. A ação só registra a conferência manual;
-não imprime nem lança uma métrica. Após resolver as incertezas, prepare e
-confira um novo lote apenas com as OPs desejadas. Pendentes e concluídas não
+No painel, prepare e confira um novo lote com as OPs desejadas. Pendentes e concluídas não
 são reenviadas automaticamente. Uma nova impressão pelo botão é uma nova
 solicitação explícita e acrescenta outra ocorrência nas métricas após conclusão.
 

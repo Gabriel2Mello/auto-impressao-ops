@@ -82,7 +82,6 @@ def main():
                             janela.native.Invoke(Action(lambda: janela.native.webview.CoreWebView2.CallDevToolsProtocolMethodAsync(
                                 'Emulation.setEmulatedMedia', '{"features":[]}')))
                             # Descendentes de regiões ocultas não acumulam transições de cor.
-                            assert janela.evaluate_js("getComputedStyle(document.querySelector('#historico-painel .dica')).transitionDuration === '0s'"), 'Histórico com transição tardia'
                             assert janela.evaluate_js("getComputedStyle(document.getElementById('lista-impressoras')).transitionDuration === '0s'"), 'Diálogo com transição tardia'
                             # O mesmo ambiente deve carregar o adaptador existente de 32 bits.
                             from src import handle_app
@@ -93,9 +92,9 @@ def main():
                                 for tema in ['claro', 'escuro']:
                                     janela.evaluate_js(f'tema.aplicar({json.dumps(tema)})')
                                     for excedente in [False, True]:
-                                        janela.evaluate_js("document.getElementById('atividade').replaceChildren()")
+                                        janela.evaluate_js("document.getElementById('resultados').replaceChildren()")
                                         if excedente:
-                                            janela.evaluate_js("for(let i=0;i<80;i++){const p=document.createElement('li');p.textContent='OP sintética '+i;document.getElementById('atividade').append(p)};document.getElementById('atividade-painel').open=true")
+                                            janela.evaluate_js("for(let i=0;i<80;i++){const p=document.createElement('p');p.textContent='OP sintética '+i;document.getElementById('resultados').append(p)}")
                                         time.sleep(.15)
                                         medidas = janela.evaluate_js("({largura:innerWidth,altura:innerHeight,excesso:document.documentElement.scrollWidth>document.documentElement.clientWidth,rodape:document.querySelector('footer').getBoundingClientRect().width,conteudo:document.querySelector('main').getBoundingClientRect().width,barra:getComputedStyle(document.documentElement).scrollbarGutter})")
                                         assert not medidas['excesso'], medidas
@@ -105,26 +104,35 @@ def main():
                                             janela.evaluate_js(f"document.querySelector('[data-modo={forma}]').click()")
                                             layout = janela.evaluate_js("""(() => {
                                               const rect=s=>document.querySelector(s).getBoundingClientRect();
-                                              const p=rect('.painel-impressora'),e=rect('.entrada'),c=rect('.conferencia'),l=rect('.lateral');
+                                              const p=rect('.painel-impressora'),e=rect('.entrada'),c=rect('.conferencia'),l=rect('.lateral'),principal=rect('.principal');
                                               return {largura:innerWidth,impressoraTopo:p.top,impressoraFim:p.bottom,impressoraDireita:p.right,
-                                                entradaTopo:e.top,entradaEsquerda:e.left,conferenciaFim:c.bottom,lateralTopo:l.top,
+                                                entradaTopo:e.top,entradaEsquerda:e.left,conferenciaFim:c.bottom,preparacaoFim:rect('.preparacao').bottom,lateralTopo:l.top,
+                                                divisoria:l.left,divisoriaEsperada:(principal.left+principal.right)/2+14,
                                                 excesso:document.documentElement.scrollWidth>document.documentElement.clientWidth,
                                                 fundo:getComputedStyle(document.querySelector('.preparacao')).backgroundColor};
                                             })()""")
+                                            if forma == 'lista':
+                                                assert janela.evaluate_js("(() => {const s=document.getElementById('setor-lista').getBoundingClientRect(),b=document.getElementById('conferir').getBoundingClientRect();return Math.abs(s.bottom-b.bottom)<1 && Math.abs(s.top-b.top)<1})()"), 'Conferir OPs não alinha com o setor'
                                             assert not layout['excesso'], layout
                                             assert layout['fundo'] == 'rgba(0, 0, 0, 0)', layout
                                             assert layout['impressoraFim'] <= layout['entradaTopo'], layout
-                                            if layout['largura'] <= 820:
-                                                assert layout['lateralTopo'] >= layout['conferenciaFim'], layout
+                                            if layout['largura'] <= 700:
+                                                assert layout['lateralTopo'] >= layout['preparacaoFim'], layout
+                                            else:
+                                                assert abs(layout['divisoria'] - layout['divisoriaEsperada']) < 1, layout
                                         evidencias.append(dict(tema=tema, excedente=excedente, **medidas))
                             # A barra sobreposta não muda a geometria ao aparecer.
                             janela.resize(1180, 820)
-                            janela.evaluate_js("document.getElementById('atividade-painel').open=false;window.scrollTo(0,0)")
+                            janela.evaluate_js("document.getElementById('resultados').replaceChildren();window.scrollTo(0,0)")
                             antes = janela.evaluate_js("document.querySelector('.preparacao').getBoundingClientRect().width")
-                            janela.evaluate_js("document.getElementById('atividade-painel').open=true")
+                            janela.evaluate_js("for(let i=0;i<80;i++){const p=document.createElement('p');p.textContent='OP sintética '+i;document.getElementById('resultados').append(p)}")
+                            time.sleep(.2)
+                            assert janela.evaluate_js("document.getElementById('resultados').scrollHeight > document.getElementById('resultados').clientHeight && document.documentElement.scrollHeight <= innerHeight + 1"), 'Resultados expandiram a página'
+                            janela.evaluate_js("document.getElementById('resultados').scrollTop=100")
+                            assert janela.evaluate_js("document.getElementById('resultados').scrollTop > 0 && window.scrollY === 0"), 'Rolagem independente ausente'
                             depois = janela.evaluate_js("document.querySelector('.preparacao').getBoundingClientRect().width")
                             assert abs(antes - depois) < 1, (antes, depois)
-                            janela.evaluate_js("document.getElementById('atividade-painel').open=false")
+                            janela.evaluate_js("document.getElementById('resultados').replaceChildren()")
                             assert janela.evaluate_js("document.getElementById('resumo-progresso').hidden"), 'Progresso vazio visível'
                             time.sleep(.15)
                             assert janela.evaluate_js("""(() => {
@@ -134,6 +142,47 @@ def main():
                                 return !b.hidden && r.left>=lateral.left && r.right<=lateral.right;
                               });
                             })()"""), 'Barra de região recolhida visível'
+
+                            # Intervalos excedentes rolam só abaixo dos modos, mantendo a página fixa.
+                            janela.evaluate_js("for(let i=0;i<15;i++) adicionarIntervalo()")
+                            time.sleep(.2)
+                            assert janela.evaluate_js("(() => {const r=document.querySelector('.rolagem-preparacao');return r.scrollHeight>r.clientHeight && document.documentElement.scrollHeight<=innerHeight+1})()"), 'Preparação expandiu a página'
+                            assert janela.evaluate_js("""(() => {
+                              const r=document.querySelector('.rolagem-preparacao').getBoundingClientRect();
+                              const limite=document.querySelector('.lateral').getBoundingClientRect().left;
+                              return Array.from(document.querySelectorAll('.barra-rolagem')).some(b=>{
+                                const t=b.getBoundingClientRect();
+                                return !b.hidden && Math.abs(t.top-r.top)<1 && t.left>=r.right-.5 && t.right<=limite;
+                              });
+                            })()"""), 'Barra da preparação sobrepõe os controles'
+                            topo_modos = janela.evaluate_js("document.querySelector('.modos').getBoundingClientRect().top")
+                            janela.evaluate_js("document.querySelector('.rolagem-preparacao').scrollTop=200")
+                            assert janela.evaluate_js("document.querySelector('.rolagem-preparacao').scrollTop>0 && window.scrollY===0"), 'Preparação sem rolagem independente'
+                            assert janela.evaluate_js("document.querySelector('.modos').getBoundingClientRect().top") == topo_modos, 'Modos deslocaram'
+                            janela.evaluate_js("document.querySelectorAll('.intervalo').forEach((r,i)=>{if(i)r.remove()});document.querySelector('.rolagem-preparacao').scrollTop=0;invalidar()")
+
+                            # Contadores fixos e lista próxima ao último elemento visível.
+                            assert janela.evaluate_js("""(() => {
+                              const anterior=estadoAtual;
+                              const geometria=()=>['.indicadores'].map(s=>document.querySelector(s).getBoundingClientRect().top);
+                              const antes=geometria();
+                              let ok=true;
+                              for(const estado of [
+                                {...anterior,ocupado:true,total:5,enviadas:0,atual:'',fase:'imprimindo',mensagem:'Conectando ao Sisplan…'},
+                                {...anterior,ocupado:true,total:5,enviadas:3,atual:'123459',setor:'10',fase:'imprimindo',mensagem:'Enviando OP 123459 · setor 10'},
+                                {...anterior,ocupado:false,total:5,enviadas:5,atual:'123460',setor:'10',fase:'concluido',mensagem:'Todas as OPs foram enviadas para impressão.'}]) {
+                                mostrarEstado(estado);
+                                ok=ok && geometria().every((v,i)=>Math.abs(v-antes[i])<1);
+                                const rect=s=>document.querySelector(s).getBoundingClientRect();
+                                const fim=rect(estado.ocupado ? '.controles-execucao' : '#resumo-progresso');
+                                ok=ok && Math.abs(rect('#resultados').top-fim.bottom-12)<1;
+                                ok=ok && Math.abs(rect('#resumo-progresso').top-rect('.estado-execucao').bottom-8)<1;
+                                ok=ok && Math.abs(rect('.andamento').top-rect('.indicadores').bottom-16)<1;
+                              }
+                              ok=ok && document.documentElement.scrollHeight<=innerHeight+1 && document.querySelector(".andamento").getBoundingClientRect().height<180;
+                              mostrarEstado(anterior);
+                              return ok;
+                            })()"""), 'Posição dos cartões ou espaçamento do acompanhamento incorreto'
 
                             from System import Action
                             janela.maximize()
@@ -146,7 +195,7 @@ def main():
                             janela.native.Invoke(Action(lambda: setattr(janela.native.webview, 'ZoomFactor', 1.0)))
                             janela.restore()
                             janela.resize(1180, 820)
-                            janela.evaluate_js("document.getElementById('atividade-painel').open=false;document.getElementById('ordens').value='123456\\n123457';modo='lista';document.getElementById('modo-lista').hidden=false;document.getElementById('modo-intervalos').hidden=true")
+                            janela.evaluate_js("document.getElementById('resultados').replaceChildren();document.getElementById('ordens').value='123456\\n123457';modo='lista';document.getElementById('modo-lista').hidden=false;document.getElementById('modo-intervalos').hidden=true")
                             janela.evaluate_js("document.getElementById('conferir').click()")
                             for _ in range(50):
                                 if janela.evaluate_js('conferido !== null'):
@@ -154,6 +203,9 @@ def main():
                                 time.sleep(.1)
                             assert janela.evaluate_js('conferido !== null && !document.getElementById("imprimir").disabled'), 'Conferência indisponível'
                             assert janela.evaluate_js("!document.getElementById('tabela-conferencia').hidden && document.getElementById('imprimir').textContent === 'Imprimir 2 OPs'"), 'Resumo conferido ausente'
+                            assert janela.evaluate_js("document.querySelector('[data-aba=conferencia]').getAttribute('aria-pressed') === 'true' && !document.getElementById('modo-conferencia').hidden && document.getElementById('formulario').hidden && document.activeElement.id === 'titulo-conferencia'"), 'Aba Conferência não ativada'
+                            janela.evaluate_js("document.querySelector('[data-aba=lista]').click()")
+                            assert janela.evaluate_js("!document.getElementById('modo-lista').hidden && conferido !== null"), 'Voltar à entrada perdeu o lote'
                             assert estado.worker is None, 'Conferência iniciou executor'
                             janela.evaluate_js("document.getElementById('ordens').value='123458';document.getElementById('ordens').dispatchEvent(new Event('input',{bubbles:true}))")
                             assert janela.evaluate_js('conferido === null && document.getElementById("imprimir").disabled'), 'Edição não invalidou conferência'

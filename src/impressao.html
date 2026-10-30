@@ -23,6 +23,14 @@
   </header>
   <p id="tema-status" class="mensagem" role="status"></p>
 
+  __CONTROLES_DEMO__
+      <section class="cartao painel-impressora" aria-labelledby="titulo-fila">
+        <h2 id="titulo-fila">Impressora</h2>
+        <p id="impressora" class="nome-impressora">Verificando a impressora…</p>
+        <p id="aviso-impressora" class="mensagem" role="status"></p>
+        <button id="selecionar-impressora" type="button" disabled aria-label="Alterar impressora">Alterar</button>
+      </section>
+
   <div class="principal">
     <div class="preparacao">
     <section class="cartao entrada" aria-labelledby="titulo-entrada">
@@ -35,36 +43,29 @@
         <fieldset id="campos">
           <div id="modo-intervalos">
             <div id="intervalos"></div>
-            <button id="adicionar" class="adicionar" type="button">+ Adicionar intervalo</button>
-            <p class="dica">Uma única OP? Preencha apenas “De”. Setor padrão: 10.</p>
+            <div class="ajustes-intervalo"><button id="adicionar" class="adicionar" type="button">+ Adicionar intervalo</button><p class="dica">Setor padrão: 10.</p></div>
           </div>
           <div id="modo-lista" hidden>
-            <p class="muted ajuda">Cole ou digite as OPs que deseja imprimir para o mesmo setor.</p>
             <label for="ordens">Ordens de produção</label>
             <textarea id="ordens" rows="5" maxlength="60000" placeholder="123456&#10;123457&#10;123458" aria-describedby="dica-lista"></textarea>
-            <p id="dica-lista" class="dica">Uma OP por linha, ou separadas por espaço, vírgula ou ponto e vírgula.</p>
+            <p id="dica-lista" class="dica">Uma OP por linha, separadas por espaço ou vírgula.</p>
             <div class="setor-lista"><label for="setor-lista">Setor</label><input id="setor-lista" inputmode="numeric" maxlength="6" value="10" autocomplete="off"></div>
           </div>
         </fieldset>
-        <div class="acoes enviar"><button id="conferir" type="submit" class="botao-principal" disabled>Conferir OPs</button></div>
         <p id="mensagem" class="mensagem" role="alert"></p>
       </form>
     </section>
 
+    <div class="acoes conferir-lote"><button id="conferir" type="submit" form="formulario" class="botao-principal" disabled>Conferir OPs</button></div>
   <section class="cartao conferencia" aria-labelledby="titulo-conferencia">
-    <div class="titulo-secao"><div><h2 id="titulo-conferencia" tabindex="-1">Conferência do lote</h2><p id="resumo" class="dica">Informe as OPs e confira o lote.</p></div></div>
+    <div id="cabecalho-conferencia" class="titulo-secao" hidden><div><h2 id="titulo-conferencia" tabindex="-1">Conferência</h2><p id="resumo" class="dica"></p></div><div id="acoes-impressao" class="acoes" hidden><button id="imprimir" type="button" class="botao-principal" disabled>Imprimir lote</button></div></div>
+    <p id="requisito-impressao" class="dica requisito" hidden>Antes de imprimir, abra o Sisplan da empresa 002 no relatório de facção, aba <strong>Envio</strong>.</p>
     <div id="tabela-conferencia" class="tabela" hidden><table><thead><tr><th scope="col">Setor</th><th scope="col">Quantidade</th><th scope="col">Ordens de produção</th></tr></thead><tbody id="lotes"><tr><td colspan="3" class="vazio">As OPs aparecerão aqui depois da conferência.</td></tr></tbody></table></div>
-    <p id="conferencia-vazia" class="vazio">As OPs aparecerão aqui após a conferência.</p>
-    <div id="acoes-impressao" hidden><p class="dica nota">Confira os números e os setores. OPs repetidas no mesmo setor entram uma única vez.</p><p class="dica requisito">Antes de imprimir, abra o Sisplan da empresa 002 no relatório de facção, aba <strong>Envio</strong>.</p><div class="acoes enviar"><button id="imprimir" type="button" class="botao-principal" disabled>Imprimir lote</button></div></div>
+    <p id="conferencia-vazia" class="vazio">Confira as OPs para revisar o lote antes de imprimir.</p>
+
   </section>
     </div>
-    <aside class="lateral" aria-label="Impressora e acompanhamento">
-      <section class="cartao painel-impressora" aria-labelledby="titulo-fila">
-        <h2 id="titulo-fila">Impressora</h2>
-        <p id="impressora" class="nome-impressora">Verificando a impressora…</p>
-        <p id="aviso-impressora" class="mensagem" role="status"></p>
-        <button id="selecionar-impressora" type="button" disabled>Alterar impressora</button>
-      </section>
+    <aside class="lateral" aria-label="Acompanhamento da impressão">
       <section class="cartao andamento" aria-labelledby="titulo-andamento">
         <div class="titulo-secao"><h2 id="titulo-andamento">Andamento</h2><span id="fase" class="etiqueta">Pronto</span></div>
         <p id="status" class="status" role="status">Aguardando conferência.</p>
@@ -78,20 +79,21 @@
         <div class="acoes enviar"><button id="parar" type="button" hidden>Parar após a OP atual</button></div>
       </section>
       <div id="pendencias" class="alerta-pendencias" role="status" hidden>
-        <p>Há OPs com envio incerto. Confira a fila e o papel antes de continuar.</p>
+        <p id="resumo-pendencias">Há OPs que precisam de revisão.</p>
         <button id="revisar-pendencias" type="button">Revisar pendências</button>
       </div>
-      <details class="orientacoes"><summary>Orientações do Sisplan</summary><p>Use a empresa 002, relatório de facção, aba <strong>Envio</strong>. A automação processa uma OP por vez.</p><p>As ordens recebem no mínimo seis dígitos. O envio ao Sisplan não confirma a saída em papel.</p></details>
-    </aside>
-  </div>
-  <section class="suporte">
-    <details id="historico-painel" class="recuperacao"><summary id="titulo-recuperacao">Histórico e recuperação</summary>
+  <section class="suporte" aria-label="Registros da impressão">
+    <details id="atividade-painel"><summary>Atividade da execução</summary><ol id="atividade"><li>Nenhuma OP enviada nesta execução.</li></ol></details>
+    <details id="historico-painel" class="recuperacao"><summary id="titulo-recuperacao">Histórico de lotes</summary>
       <p class="dica">Último lote salvo neste computador e incertezas anteriores. Após uma interrupção, confira a fila e o papel antes de registrar o resultado. Nenhuma OP é retomada automaticamente.</p>
       <div id="recuperacao"></div><p id="erro-recuperacao" class="mensagem" role="alert"></p>
     </details>
-    <details id="atividade-painel"><summary>Atividade desta execução</summary><ol id="atividade"><li>Nenhuma OP enviada nesta execução.</li></ol></details>
+
     <p id="conexao" class="dica" role="status">Conectando ao painel local…</p>
   </section>
+      <details class="orientacoes"><summary>Orientações do Sisplan</summary><p>Use a empresa 002, relatório de facção, aba <strong>Envio</strong>. A automação processa uma OP por vez.</p></details>
+    </aside>
+  </div>
 </main>
 <dialog id="dialogo-impressora" aria-labelledby="titulo-impressora" aria-describedby="ajuda-impressora">
   <h2 id="titulo-impressora">Selecionar impressora</h2>

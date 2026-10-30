@@ -6,4 +6,5 @@ $pacoteImpressao = Join-Path $PSScriptRoot 'dist\Impressao OPs'
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'DESKTOP.md') -Destination $pacoteImpressao
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Abrir Impressao OPs.cmd') -Destination $pacoteImpressao
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Criar Atalho Impressao OPs.ps1') -Destination $pacoteImpressao
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Testar Interface Impressao OPs.cmd') -Destination $pacoteImpressao
 Write-Output "Pacote gerado em $pacoteImpressao. Distribua a pasta inteira, incluindo _internal."

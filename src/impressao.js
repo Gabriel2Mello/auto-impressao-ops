@@ -5,15 +5,23 @@ const desktop = document.querySelector('meta[name="impressao-desktop"]')?.conten
 let salvamentoTema = Promise.resolve(true);
 let modo = 'intervalos', conferido = null, ocupado = false, online = false, encerrado = false, pendente = false, impressora = '';
 let numeroIntervalo = 0;
+let estadoAtual = null, preparando = true, resumoConferencia = null;
 const pagina = crypto.randomUUID();
 const presenca = new AbortController();
-let ultimoEstado = '', saindo = false, historico = [], faseAtual = 'pronto';
+let ultimoEstado = '', saindo = false, historico = [];
 
 function atualizarBotoes() {
-  $('tabela-conferencia').hidden = !conferido;
-  $('conferencia-vazia').hidden = Boolean(conferido);
+  for (const id of ['demo-resultado', 'demo-exemplo']) {
+    const controle = $(id);
+    if (controle) controle.disabled = ocupado || pendente || encerrado || !online;
+  }
+  $('tabela-conferencia').hidden = !resumoConferencia;
+  $('cabecalho-conferencia').hidden = !resumoConferencia;
+  $('conferencia-vazia').hidden = Boolean(resumoConferencia);
+  $('requisito-impressao').hidden = !conferido;
   $('acoes-impressao').hidden = !conferido;
   $('conferir').classList.toggle('botao-principal', !conferido);
+  mostrarAndamento();
   $('campos').disabled = ocupado || pendente || encerrado;
   $('conferir').disabled = ocupado || pendente || !online || encerrado;
   $('imprimir').disabled = !conferido || ocupado || pendente || !online || !impressora || encerrado || historico.some(item => ['envio_iniciado', 'incerto'].includes(item.situacao));
@@ -27,7 +35,8 @@ function atualizarBotoes() {
 }
 function invalidar() {
   conferido = null;
-  if (faseAtual === 'pronto') $('status').textContent = 'Aguardando conferência.';
+  preparando = true; resumoConferencia = null;
+  $('titulo-conferencia').textContent = 'Conferência';
   $('resumo').textContent = 'Informe as OPs e confira o lote.';
   $('lotes').replaceChildren();
   const linha = document.createElement('tr'), celula = document.createElement('td');
@@ -71,20 +80,11 @@ function mostrarEstado(estado) {
   const assinatura = JSON.stringify(estado);
   if (assinatura === ultimoEstado) return;
   ultimoEstado = assinatura;
-  faseAtual = estado.fase;
+  estadoAtual = estado;
+  if (estado.ocupado) preparando = false;
   ocupado = estado.ocupado; impressora = estado.impressora;
   historico = estado.historico || [];
   mostrarHistorico();
-  const fases = {pronto: 'Pronto', imprimindo: 'Em andamento', concluido: 'Concluído', interrompido: 'Interrompido', erro: 'Conferir impressão'};
-  $('fase').textContent = fases[estado.fase] || estado.fase;
-  $('fase').classList.toggle('erro', estado.fase === 'erro');
-  $('status').textContent = estado.fase === 'pronto' ? (conferido ? 'Lote pronto para imprimir.' : 'Aguardando conferência.') : estado.mensagem;
-  $('resumo-progresso').hidden = !estado.total;
-  $('aviso-operacao').hidden = !ocupado;
-  $('ordem-atual').hidden = !estado.atual;
-  $('ordem-atual').textContent = estado.atual ? `Última OP em processamento: ${estado.atual} · setor ${estado.setor}` : 'Informe as ordens e confira o lote antes de imprimir.';
-  $('enviadas').textContent = estado.enviadas; $('total').textContent = estado.total;
-  $('progresso').max = estado.total || 1; $('progresso').value = estado.enviadas;
   $('impressora').textContent = impressora || 'Nenhuma impressora selecionada.';
   $('aviso-impressora').textContent = estado.aviso_impressora || '';
   $('atividade').replaceChildren();
@@ -93,8 +93,28 @@ function mostrarEstado(estado) {
   }
   atualizarBotoes();
 }
+function mostrarAndamento() {
+  if (!estadoAtual) return;
+  const estado = estadoAtual;
+  const incertas = historico.filter(item => ['envio_iniciado', 'incerto'].includes(item.situacao)).length;
+  const novoLote = preparando && !ocupado && !incertas;
+  const fases = {pronto:'Pronto', imprimindo:'Em andamento', concluido:'Concluído', interrompido:'Interrompido', erro:'Conferir impressão'};
+  $('fase').textContent = novoLote ? (conferido ? 'Conferido' : 'Preparação') : (fases[estado.fase] || estado.fase);
+  $('fase').classList.toggle('erro', !novoLote && estado.fase === 'erro');
+  $('status').textContent = novoLote ? (conferido ? 'Lote pronto para imprimir.' : 'Aguardando conferência.') : estado.mensagem;
+  $('resumo-progresso').hidden = novoLote || !estado.total;
+  $('ordem-atual').hidden = novoLote || !estado.atual;
+  $('ordem-atual').textContent = estado.atual ? `${ocupado ? 'OP em processamento' : 'Última OP processada'}: ${estado.atual} · setor ${estado.setor}` : '';
+  $('enviadas').textContent = novoLote ? 0 : estado.enviadas;
+  $('total').textContent = novoLote ? 0 : estado.total;
+  $('progresso').max = novoLote ? 1 : (estado.total || 1);
+  $('progresso').value = novoLote ? 0 : estado.enviadas;
+  $('aviso-operacao').hidden = !ocupado;
+}
 function mostrarHistorico() {
-  $('pendencias').hidden = ocupado || !historico.some(item => ['envio_iniciado', 'incerto'].includes(item.situacao));
+  const incertas = historico.filter(item => ['envio_iniciado', 'incerto'].includes(item.situacao)).length;
+  $('pendencias').hidden = ocupado || !incertas;
+  $('resumo-pendencias').textContent = `${incertas} OP(s) precisam de revisão. Confira a fila e o papel.`;
   $('recuperacao').replaceChildren();
   const rotulos = {pendente: 'Não iniciada', envio_iniciado: ocupado ? 'Envio em andamento' : 'Incerto: conferir fila e papel', incerto: 'Incerto: conferir fila e papel', concluido: 'Envio concluído pelo fluxo', conferido_enviado: 'Envio confirmado manualmente', conferido_nao_enviado: 'Não enviado: conferido manualmente'};
   if (!historico.length) { $('recuperacao').textContent = 'Nenhum lote salvo nesta versão.'; return; }
@@ -170,7 +190,7 @@ async function acompanhar() {
     });
     if (!resposta.ok || !resposta.body) throw Error('Não foi possível acompanhar o painel.');
     online = true;
-    $('conexao').textContent = 'Painel conectado · neste computador';
+    $('conexao').textContent = '';
     const leitor = resposta.body.getReader(), decoder = new TextDecoder();
     let buffer = '';
     while (!encerrado && !saindo) {
@@ -195,7 +215,9 @@ $('formulario').onsubmit = async evento => {
   pendente = true; atualizarBotoes(); $('mensagem').textContent = '';
   try {
     const dados = entrada(), resultado = await api('/api/conferir', dados);
-    conferido = dados; $('lotes').replaceChildren();
+    conferido = dados; preparando = true; resumoConferencia = resultado;
+    $('titulo-conferencia').textContent = 'Conferência';
+    $('lotes').replaceChildren();
     for (const lote of resultado.lotes) {
       const linha = document.createElement('tr');
       for (const valor of [lote.setor, lote.ordens.length, lote.ordens.slice(0, 100).join(' · ') + (lote.ordens.length > 100 ? ` · … e mais ${lote.ordens.length - 100} OPs` : '')]) {
@@ -205,15 +227,16 @@ $('formulario').onsubmit = async evento => {
     }
     $('resumo').textContent = `${resultado.total} OPs · ${resultado.lotes.length} setor(es)`;
     $('imprimir').textContent = `Imprimir ${resultado.total} OPs`;
-    if (!ocupado) $('status').textContent = 'Lote pronto para imprimir.';
+
+    $('cabecalho-conferencia').hidden = false;
     $('titulo-conferencia').focus();
-  } catch (erro) { conferido = null; $('mensagem').textContent = erro.message; }
+  } catch (erro) { conferido = null; resumoConferencia = null; $('mensagem').textContent = erro.message; }
   finally { pendente = false; atualizarBotoes(); }
 };
 $('imprimir').onclick = async () => {
   if (!conferido || pendente || ocupado || encerrado || historico.some(item => ['envio_iniciado', 'incerto'].includes(item.situacao))) return;
   pendente = true; atualizarBotoes(); $('mensagem').textContent = '';
-  try { const estado = await api('/api/iniciar', {...conferido, impressora}); conferido = null; mostrarEstado(estado); }
+  try { const estado = await api('/api/iniciar', {...conferido, impressora}); conferido = null; preparando = false; $('titulo-conferencia').textContent = 'Lote enviado'; mostrarEstado(estado); }
   catch (erro) { conferido = null; $('mensagem').textContent = erro.message + ' Confira o andamento antes de preparar outro lote.'; }
   finally { pendente = false; atualizarBotoes(); }
 };

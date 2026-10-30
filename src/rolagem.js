@@ -24,6 +24,7 @@
       const visivel = Math.max(0, fim - topo);
       maximo = Math.max(0, alvo.scrollHeight - altura);
       trilho.hidden = !maximo || !visivel || (!pagina && getComputedStyle(alvo).overflowY === 'visible');
+      if (!pagina && alvo.closest('details') && !alvo.closest('details').open) trilho.hidden = true;
       if (!pagina && alvo.closest('dialog') && !alvo.closest('dialog').open) trilho.hidden = true;
       if (trilho.hidden) return;
       const tamanho = Math.min(visivel, Math.max(32, visivel * altura / alvo.scrollHeight));

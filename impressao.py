@@ -69,6 +69,9 @@ def executar_painel(publicacao: IntegracaoLocal, medidor=None, *, desktop=False)
 
 
 if __name__ == '__main__':
+    if '--demo' in sys.argv:
+        from demonstracao import main as demonstrar
+        raise SystemExit(demonstrar())
     if '--web' in sys.argv:
         sys.argv.remove('--web')
         raise SystemExit(executar_interface('impressao-ops', 'Impressão de OPs', True, main))

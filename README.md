@@ -64,7 +64,9 @@ O modo de console mantém `MODO_ENTRADA` em `main.py` e a leitura de `ordem_prod
 
 Visual adaptado ao [guia de telas Nunes](../estrutura-nunes/identidade-visual/interfaces/guia-telas-automacoes.md),
 com Cofre e Busca e Move como referências: preparação/conferência à esquerda,
-impressora e andamento à direita, histórico recolhido abaixo, tema no cabeçalho e Encerrar com ícone no
+impressora em faixa compacta acima da preparação e andamento à direita.
+Atividade e histórico ficam recolhidos junto ao andamento. Seções sem caixas,
+com divisórias sutis; em janelas menores as duas áreas ficam empilhadas. Tema no cabeçalho e Encerrar com ícone no
 rodapé. Temas claro/escuro, com escuro por padrão e preferência persistida.
 O ícone coração com N conserva a cor `#475569`. A assinatura **g2mello · Essencial**
 inclui os dois traços sob os `l` e o link de autoria. Os recursos ficam neste
@@ -228,3 +230,17 @@ Somente impressoras e controles simulados, HTTP local de teste e diretórios
 isolados; nenhuma OP real foi impressa nem houve interação com o Sisplan.
 Feche e reabra a ferramenta para carregar a mudança; executáveis antigos
 precisam ser reconstruídos. Homologação física de impressão permanece separada.
+
+## Demonstração para ajustar a interface
+
+Abra **Testar Interface Impressao OPs.cmd** ou execute
+`.\.venv-desktop\Scripts\python.exe impressao.py --demo`.
+A janela identifica **Demonstração** e pode ficar aberta junto da aplicação normal.
+Use **Preencher exemplo**, **Conferir OPs** e **Imprimir 5 OPs** para ver o progresso
+simulado. O seletor **Resultado simulado** permite também provocar uma falha e
+explorar o histórico de pendências. A parada e o seletor de impressora podem ser testados.
+
+Nenhum acesso ao Sisplan, às filas reais, à exclusividade operacional ou à central
+de estatísticas é iniciado. Impressoras, diário e preferências são isolados em uma
+pasta temporária e descartados ao encerrar; cada abertura começa limpa.
+O modo normal continua sendo aberto por **Abrir Impressao OPs.cmd**.

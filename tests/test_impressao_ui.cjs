@@ -269,3 +269,29 @@ test('progresso aparece durante o lote e pendências continuam acessíveis no hi
   assert.equal(ui.obter('historico-painel').open, true);
   ui.eventos.pagehide();
 });
+
+
+test('novo lote não mistura progresso anterior e o resumo enviado permanece visível', async () => {
+  const ui = painel(); await avancar();
+  ui.enviar(`data: ${JSON.stringify(ui.estado)}\n\n`); await avancar();
+  await ui.obter('formulario').onsubmit({preventDefault(){}});
+  Object.assign(ui.estado,{ocupado:true,fase:'imprimindo',total:1,atual:'000001'});
+  await ui.obter('imprimir').onclick();
+  assert.equal(ui.obter('tabela-conferencia').hidden,false);
+  assert.equal(ui.obter('acoes-impressao').hidden,true);
+  assert.equal(ui.obter('titulo-conferencia').textContent,'Lote enviado');
+  Object.assign(ui.estado,{ocupado:false,fase:'concluido',enviadas:1});
+  ui.enviar(`data: ${JSON.stringify(ui.estado)}\n\n`); await avancar();
+  assert.equal(ui.obter('tabela-conferencia').hidden,false);
+  assert.equal(ui.obter('fase').textContent,'Concluído');
+  await ui.obter('formulario').onsubmit({preventDefault(){}});
+  assert.equal(ui.obter('fase').textContent,'Conferido');
+  assert.equal(ui.obter('status').textContent,'Lote pronto para imprimir.');
+  assert.equal(ui.obter('resumo-progresso').hidden,true);
+  assert.equal(ui.obter('ordem-atual').hidden,true);
+  ui.obter('adicionar').onclick();
+  assert.equal(ui.obter('fase').textContent,'Preparação');
+  assert.equal(ui.obter('resumo-progresso').hidden,true);
+  assert.equal(ui.obter('tabela-conferencia').hidden,true);
+  ui.eventos.pagehide();
+});

@@ -28,8 +28,11 @@ Uma instância web anterior precisa ser encerrada normalmente antes de abrir o d
 ## Interface e contratos preservados
 
 Layout baseado em Cofre/Busca e Move: preparação e conferência à esquerda,
-impressora e andamento à direita, histórico recolhido abaixo, tema no cabeçalho
-e Encerrar no rodapé. Pendências de envio têm alerta e atalho para revisão.
+impressora em faixa compacta acima da entrada e andamento à direita. Atividade
+e histórico ficam recolhidos junto ao andamento, com divisórias sutis e sem caixas.
+Em larguras estreitas o andamento fica após a conferência. Tema no cabeçalho e
+Encerrar no rodapé. O resumo enviado permanece visível até preparar outro lote;
+a nova preparação não mostra o progresso da execução anterior. Pendências de envio têm alerta e atalho para revisão.
 Em larguras estreitas, os painéis ficam empilhados. A rolagem usa indicador
 sobreposto, sem reservar faixa. A lista de impressoras permanece em diálogo.
 
@@ -84,7 +87,7 @@ ambiente apropriado; ensaio sintético não comprova saída de papel ou conexão
 Verificação local em 30/10/2026: dependências compatíveis no Python 3.13.13 de
 32 bits, com importação conjunta de WebView2 e adaptador Sisplan. Passaram os
 75 testes Python existentes, seis novos testes de ciclo desktop/finalização e
-14 testes JavaScript. O ensaio WebView2 passou em 17 cenários (temas, larguras,
+15 testes JavaScript. O ensaio WebView2 passou em 21 cenários (temas, larguras,
 excedente de conteúdo, maximização e zoom de 200%), além de conferência sem
 execução, invalidação após edição, tema persistido e diálogo de impressoras.
 A transição manual de tema segue a Cofre, com movimento reduzido respeitado
@@ -95,3 +98,17 @@ compartilhados coincidem com a fonte por SHA-256.
 
 Evidências locais de fonte ficam em `.local/qa-desktop`. Não houve impressão
 real nem homologação entre dois monitores físicos em 100%/125%.
+
+## Demonstração para ajustar a interface
+
+Abra **Testar Interface Impressao OPs.cmd** ou execute
+`.\.venv-desktop\Scripts\python.exe impressao.py --demo`.
+A janela identifica **Demonstração** e pode ficar aberta junto da aplicação normal.
+Use **Preencher exemplo**, **Conferir OPs** e **Imprimir 5 OPs** para ver o progresso
+simulado. O seletor **Resultado simulado** permite também provocar uma falha e
+explorar o histórico de pendências. A parada e o seletor de impressora podem ser testados.
+
+Nenhum acesso ao Sisplan, às filas reais, à exclusividade operacional ou à central
+de estatísticas é iniciado. Impressoras, diário e preferências são isolados em uma
+pasta temporária e descartados ao encerrar; cada abertura começa limpa.
+O modo normal continua sendo aberto por **Abrir Impressao OPs.cmd**.

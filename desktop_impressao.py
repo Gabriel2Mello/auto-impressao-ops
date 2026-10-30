@@ -83,6 +83,8 @@ def atender_ativacao(handler):
 class Janela:
     def __init__(self, servidor):
         self.servidor = servidor
+        self.nome = NOME + (' · Demonstração' if getattr(servidor, 'demonstracao', False) else '')
+        self.app_id = APP_ID + ('.Demo' if getattr(servidor, 'demonstracao', False) else '')
         self.ativar = Event()
         self.fechada = Event()
         self.pronto_para_fechar = Event()
@@ -97,7 +99,7 @@ class Janela:
             return True
         if self.servidor.fechando or self.salvando:
             return False
-        if janela.create_confirmation_dialog(NOME,
+        if janela.create_confirmation_dialog(self.nome,
                 'Encerrar a Impressão de OPs? A OP em andamento será concluída antes da parada.'):
             self.solicitar_encerramento()
         return False
@@ -124,12 +126,12 @@ class Janela:
                 if self.fechada.is_set():
                     raise RuntimeError('A janela fechou antes de confirmar as preferências.')
             if respostas != [True]:
-                janela.set_title(NOME + ' · Confira a falha ao salvar o tema')
+                janela.set_title(self.nome + ' · Confira a falha ao salvar o tema')
                 return
             self.servidor.encerrar(confirmado=True)
         except Exception:
             logging.exception('Falha ao salvar preferências antes de encerrar')
-            janela.set_title(NOME + ' · Não foi possível confirmar as preferências')
+            janela.set_title(self.nome + ' · Não foi possível confirmar as preferências')
         finally:
             self.salvando = False
 
@@ -139,10 +141,10 @@ class Janela:
         from dpi_windows import preparar, validar_janela
         preparar('ImpressaoOPsDesktop')
         import webview
-        desktop_windows.identidade_processo(APP_ID)
+        desktop_windows.identidade_processo(self.app_id)
         webview.settings['ALLOW_DOWNLOADS'] = False
         webview.settings['ALLOW_FILE_URLS'] = False
-        janela = webview.create_window(NOME, f'http://127.0.0.1:{self.servidor.server_port}',
+        janela = webview.create_window(self.nome, f'http://127.0.0.1:{self.servidor.server_port}',
                                       width=1180, height=820, min_size=(760, 540), text_select=True)
         self.janela = janela
 
@@ -173,13 +175,13 @@ class Janela:
                 hwnd = janela.native.Handle.ToInt64()
                 validar_janela(hwnd)
                 desktop_windows.propriedades_janela(hwnd,
-                    desktop_windows.comando_reabrir([], Path(__file__).with_name('impressao.py')),
-                    RECURSOS / 'icons/icone.ico', app_id=APP_ID, nome=NOME)
+                    desktop_windows.comando_reabrir(['--demo'] if getattr(self.servidor, 'demonstracao', False) else [], Path(__file__).with_name('impressao.py')),
+                    RECURSOS / 'icons/icone.ico', app_id=self.app_id, nome=self.nome)
                 avisou = False
                 while not self.fechada.wait(.1):
                     if self.servidor.fechando and not avisou:
                         avisou = True
-                        janela.set_title(NOME + ' · Encerrando após a OP atual…')
+                        janela.set_title(self.nome + ' · Encerrando após a OP atual…')
                     if not janela.events.loaded.is_set() and time.monotonic() >= limite:
                         raise RuntimeError('O WebView2 não carregou a interface no prazo.')
                     if self.pronto_para_fechar.is_set():

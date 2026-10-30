@@ -94,6 +94,7 @@ def criar_servidor(estado=None, porta=8766, medidor_abertura=None, modo_desktop=
         '/impressao.css': ('src/impressao.css', 'text/css; charset=utf-8'),
         '/impressao.js': ('src/impressao.js', 'text/javascript; charset=utf-8'),
         '/nunes-tema.js': ('src/nunes-tema.js', 'text/javascript; charset=utf-8'),
+        '/demonstracao.js': ('src/demonstracao.js', 'text/javascript; charset=utf-8'),
         '/rolagem.js': ('src/rolagem.js', 'text/javascript; charset=utf-8'),
         '/icons/tema-lua.svg': ('icons/tema-lua.svg', 'image/svg+xml'),
         '/icons/tema-lua-sol.svg': ('icons/tema-lua-sol.svg', 'image/svg+xml'),
@@ -181,6 +182,11 @@ def criar_servidor(estado=None, porta=8766, medidor_abertura=None, modo_desktop=
                 conteudo = (RECURSOS / arquivo).read_bytes()
                 if caminho == '/':
                     conteudo = conteudo.replace(b'__TOKEN__', token.encode('ascii'))
+                    controles = ''
+                    if getattr(servidor, 'demonstracao', False):
+                        from demonstracao import CONTROLES
+                        controles = CONTROLES
+                    conteudo = conteudo.replace(b'__CONTROLES_DEMO__', controles.encode('utf-8'))
                     conteudo = conteudo.replace(b'__DESKTOP__', b'1' if servidor.modo_desktop else b'0')
                     from desktop_preferencias import ler_tema
                     conteudo = conteudo.replace(b'__TEMA__', (ler_tema() if servidor.modo_desktop else 'escuro').encode('ascii'))
@@ -232,6 +238,8 @@ def criar_servidor(estado=None, porta=8766, medidor_abertura=None, modo_desktop=
                     estado.conferir_impressao(dados)
                 elif caminho == '/api/impressora':
                     estado.selecionar_impressora(dados.get('impressora'))
+                elif caminho == '/api/demonstracao' and getattr(servidor, 'demonstracao', False):
+                    estado.configurar_demo(dados)
                 elif caminho == '/api/parar':
                     estado.solicitar_parada()
                 elif caminho == '/api/encerrar':

@@ -87,7 +87,7 @@ def main():
                             # O mesmo ambiente deve carregar o adaptador existente de 32 bits.
                             from src import handle_app
                             assert handle_app.CAMPOS['numero'] == 5
-                            for largura, altura in [(1180, 820), (1920, 1000), (760, 600), (360, 780)]:
+                            for largura, altura in [(1180, 820), (1920, 1000), (1000, 720), (760, 600), (360, 780)]:
                                 janela.resize(largura, altura)
                                 time.sleep(.3)
                                 for tema in ['claro', 'escuro']:
@@ -101,6 +101,21 @@ def main():
                                         assert not medidas['excesso'], medidas
                                         assert abs(medidas['rodape'] - medidas['largura']) < 2, medidas
                                         assert medidas['barra'] != 'stable', medidas
+                                        for forma in ['lista', 'intervalos']:
+                                            janela.evaluate_js(f"document.querySelector('[data-modo={forma}]').click()")
+                                            layout = janela.evaluate_js("""(() => {
+                                              const rect=s=>document.querySelector(s).getBoundingClientRect();
+                                              const p=rect('.painel-impressora'),e=rect('.entrada'),c=rect('.conferencia'),l=rect('.lateral');
+                                              return {largura:innerWidth,impressoraTopo:p.top,impressoraFim:p.bottom,impressoraDireita:p.right,
+                                                entradaTopo:e.top,entradaEsquerda:e.left,conferenciaFim:c.bottom,lateralTopo:l.top,
+                                                excesso:document.documentElement.scrollWidth>document.documentElement.clientWidth,
+                                                fundo:getComputedStyle(document.querySelector('.preparacao')).backgroundColor};
+                                            })()""")
+                                            assert not layout['excesso'], layout
+                                            assert layout['fundo'] == 'rgba(0, 0, 0, 0)', layout
+                                            assert layout['impressoraFim'] <= layout['entradaTopo'], layout
+                                            if layout['largura'] <= 820:
+                                                assert layout['lateralTopo'] >= layout['conferenciaFim'], layout
                                         evidencias.append(dict(tema=tema, excedente=excedente, **medidas))
                             # A barra sobreposta não muda a geometria ao aparecer.
                             janela.resize(1180, 820)
@@ -111,6 +126,15 @@ def main():
                             assert abs(antes - depois) < 1, (antes, depois)
                             janela.evaluate_js("document.getElementById('atividade-painel').open=false")
                             assert janela.evaluate_js("document.getElementById('resumo-progresso').hidden"), 'Progresso vazio visível'
+                            time.sleep(.15)
+                            assert janela.evaluate_js("""(() => {
+                              const lateral=document.querySelector('.lateral').getBoundingClientRect();
+                              return !Array.from(document.querySelectorAll('.barra-rolagem')).some(b=>{
+                                const r=b.getBoundingClientRect();
+                                return !b.hidden && r.left>=lateral.left && r.right<=lateral.right;
+                              });
+                            })()"""), 'Barra de região recolhida visível'
+
                             from System import Action
                             janela.maximize()
                             time.sleep(.3)
@@ -123,7 +147,7 @@ def main():
                             janela.restore()
                             janela.resize(1180, 820)
                             janela.evaluate_js("document.getElementById('atividade-painel').open=false;document.getElementById('ordens').value='123456\\n123457';modo='lista';document.getElementById('modo-lista').hidden=false;document.getElementById('modo-intervalos').hidden=true")
-                            janela.evaluate_js("document.getElementById('formulario').requestSubmit()")
+                            janela.evaluate_js("document.getElementById('conferir').click()")
                             for _ in range(50):
                                 if janela.evaluate_js('conferido !== null'):
                                     break

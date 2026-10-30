@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const caminho = require('node:path');
 
-function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=false}={}) {
+function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=false, desktop=false, temaBackend='escuro'}={}) {
   let alteracoes = 0, leitura, recusarLeitura;
   const requisicoes = [], eventos = {}, respostasConfirmacao = [], respostas = new Map();
   class Elemento {
@@ -14,7 +14,7 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
     append(...filhos) { this.children.push(...filhos); alteracoes++; }
     replaceChildren(...filhos) { this.children = filhos; this.value = ''; alteracoes++; }
     setAttribute() {}
-    addEventListener(nome,acao) { if(nome==='click')this.onclick=acao; }
+    addEventListener(nome,acao) { if(nome==='click'){const anterior=this.onclick;this.onclick=(...args)=>{anterior?.(...args);return acao(...args);};} }
     focus() {}
     showModal() { this.open = true; }
     close() { this.open = false; }
@@ -27,7 +27,7 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
     document: {
       get cookie() { if (falhaCookie) throw Error('Cookies indisponíveis'); return cookie; },
       set cookie(valor) { if (falhaCookie) throw Error('Cookies indisponíveis'); cookie = valor; },
-      getElementById: obter, querySelector: () => ({content: 'token-sintetico'}), querySelectorAll: () => [],
+      getElementById: obter, querySelector: seletor => ({content: seletor.includes('impressao-desktop') ? (desktop ? '1' : '0') : seletor.includes('impressao-tema') ? temaBackend : 'token-sintetico'}), querySelectorAll: () => [],
       documentElement: {dataset: {},setAttribute(nome,valor){this.dataset.tema=valor;}}, createElement: tag => Object.assign(new Elemento(), {tag})
     },
     window: {addEventListener: (nome, funcao) => { eventos[nome] = funcao; }},
@@ -76,7 +76,9 @@ test('tema escuro padrão e preferências válidas são recuperados sem consulta
 
 test('alternância salva a preferência e cookie restaura o tema com storage de outra porta', () => {
   const ui = painel();
+  assert.equal(ui.sandbox.document.documentElement.dataset.temaAnimado, undefined);
   ui.obter('tema').onclick();
+  assert.equal(ui.sandbox.document.documentElement.dataset.temaAnimado, '1');
   assert.equal(ui.sandbox.document.documentElement.dataset.tema, 'claro');
   assert.equal(ui.sandbox.localStorage.getItem('nunes-impressao-tema'), 'claro');
   assert.equal(ui.sandbox.document.cookie, 'nunes-impressao-tema=claro; Path=/; Max-Age=31536000; SameSite=Strict');
@@ -174,7 +176,7 @@ test('seletor lista filas ao abrir, permite atualizar e confirma a impressora es
   assert.equal(ui.requisicoes.at(-1).url, '/api/impressora');
   assert.equal(JSON.parse(ui.requisicoes.at(-1).opcoes.body).impressora, 'EPSON');
   assert.equal(ui.obter('dialogo-impressora').open, false);
-  assert.equal(ui.obter('impressora').textContent, 'Impressora: EPSON');
+  assert.equal(ui.obter('impressora').textContent, 'EPSON');
   assert.equal(ui.requisicoes.some(item => item.url === '/api/iniciar'), false);
   ui.eventos.pagehide();
 });
@@ -225,5 +227,45 @@ test('incerteza persistida bloqueia impressão e só libera após conferência e
   assert.equal(JSON.parse(requisicao.opcoes.body).conferi_fila_e_papel, true);
   assert.equal(JSON.parse(requisicao.opcoes.body).resultado, 'conferido_enviado');
   assert.equal(ui.requisicoes.some(item => item.url === '/api/iniciar'), false);
+  ui.eventos.pagehide();
+});
+
+test('desktop restaura tema do backend, persiste a troca e dispensa aviso de aba', async () => {
+  const ui = painel({desktop:true, temaSalvo:'claro', temaBackend:'escuro'});
+  assert.equal(ui.sandbox.document.documentElement.dataset.tema, 'escuro');
+  ui.obter('tema').onclick(); await avancar();
+  const pedido = ui.requisicoes.find(item=>item.url==='/api/tema');
+  assert.equal(JSON.parse(pedido.opcoes.body).tema, 'claro');
+  let avisos=0;
+  ui.eventos.beforeunload({preventDefault(){avisos++;}});
+  assert.equal(avisos,0);
+  ui.eventos.pagehide();
+});
+
+test('falha ao salvar tema no desktop informa erro e impede Encerrar pela página', async () => {
+  const ui = painel({desktop:true});
+  ui.respostas.set('/api/tema',{ok:false,json:async()=>({erro:'Falha sintética ao salvar'})});
+  ui.obter('tema').onclick(); await avancar();
+  assert.equal(ui.obter('tema-status').textContent,'Falha sintética ao salvar');
+  ui.respostasConfirmacao.push(true);
+  await ui.obter('encerrar').onclick();
+  assert.equal(ui.requisicoes.some(item=>item.url==='/api/encerrar'),false);
+  ui.eventos.pagehide();
+});
+
+
+test('progresso aparece durante o lote e pendências continuam acessíveis no histórico recolhido', async () => {
+  const ui = painel(); await avancar();
+  ui.enviar(`data: ${JSON.stringify(ui.estado)}\n\n`); await avancar();
+  assert.equal(ui.obter('resumo-progresso').hidden, true);
+  assert.equal(ui.obter('tabela-conferencia').hidden, true);
+  ui.enviar(`data: ${JSON.stringify({...ui.estado, ocupado:true, total:5, fase:'imprimindo'})}\n\n`); await avancar();
+  assert.equal(ui.obter('resumo-progresso').hidden, false);
+  assert.equal(ui.obter('aviso-operacao').hidden, false);
+  ui.enviar(`data: ${JSON.stringify({...ui.estado, fase:'erro', historico:[{numero:'123456', setor:'10', situacao:'incerto'}]})}\n\n`); await avancar();
+  assert.equal(ui.obter('pendencias').hidden, false);
+  ui.obter('historico-painel').scrollIntoView = () => {};
+  ui.obter('revisar-pendencias').onclick();
+  assert.equal(ui.obter('historico-painel').open, true);
   ui.eventos.pagehide();
 });

@@ -1,4 +1,4 @@
-"""Inicia a interface web local de impressão de OPs."""
+"""Inicia Impressão de OPs desktop; --web mantém o painel no navegador."""
 
 import logging
 import sys
@@ -16,14 +16,20 @@ def informar_falha(mensagem):
         print(mensagem, file=sys.stderr)
 
 
-def main(publicacao: IntegracaoLocal):
+def main(publicacao: IntegracaoLocal, *, desktop=False):
     with MedidorAbertura('impressao-ops') as medidor, ExitStack() as recursos:
         with medidor.etapa('sincronizacao'):
-            recursos.enter_context(Sincronizador(aplicacao='impressao-ops', relatar=logging.getLogger(__name__).info))
-        return executar_painel(publicacao, medidor)
+            sincronizador = recursos.enter_context(Sincronizador(aplicacao='impressao-ops', relatar=logging.getLogger(__name__).info))
+        try:
+            return executar_painel(publicacao, medidor, desktop=desktop)
+        finally:
+            # A janela já saiu após a OP atual; a exclusividade acompanha o processo.
+            recursos.close()
+            if sincronizador.worker is not None:
+                sincronizador.worker.join()
 
 
-def executar_painel(publicacao: IntegracaoLocal, medidor=None):
+def executar_painel(publicacao: IntegracaoLocal, medidor=None, *, desktop=False):
     medidor = medidor or MedidorAbertura('impressao-ops')
     with medidor.etapa('importacoes'):
         from src.interface_web import criar_servidor
@@ -34,7 +40,8 @@ def executar_painel(publicacao: IntegracaoLocal, medidor=None):
                                 level=logging.INFO, encoding='utf-8',
                                 format='%(asctime)s %(levelname)s %(message)s')
         with medidor.etapa('preparacao_painel'):
-            servidor, estado = criar_servidor(medidor_abertura=medidor)
+            servidor, estado = criar_servidor(medidor_abertura=medidor, modo_desktop=desktop,
+                                            porta=0 if desktop else 8766)
     except (OSError, RuntimeError) as erro:
         publicacao.registrar_falha(erro)
         informar_falha(f'Não foi possível abrir o painel. Verifique se o programa já está aberto '
@@ -42,9 +49,15 @@ def executar_painel(publicacao: IntegracaoLocal, medidor=None):
         return 1
     try:
         with medidor.etapa('publicacao'):
+            if desktop:
+                publicacao.registro['desktop'] = 1
             publicacao.publicar(servidor, servidor.encerrar,
                 lambda: {'encerrando': servidor.fechando, 'paginas': len(servidor.paginas)})
-        servidor.serve_forever()
+        if desktop:
+            from desktop_impressao import executar
+            executar(servidor)
+        else:
+            servidor.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
@@ -56,4 +69,8 @@ def executar_painel(publicacao: IntegracaoLocal, medidor=None):
 
 
 if __name__ == '__main__':
-    raise SystemExit(executar_interface('impressao-ops', 'Impressão de OPs', True, main))
+    if '--web' in sys.argv:
+        sys.argv.remove('--web')
+        raise SystemExit(executar_interface('impressao-ops', 'Impressão de OPs', True, main))
+    from desktop_impressao import iniciar
+    raise SystemExit(iniciar())

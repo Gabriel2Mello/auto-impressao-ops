@@ -12,16 +12,18 @@ from urllib.parse import urlsplit
 
 from src.entrada_web import montar_lotes
 from src.servico_impressao import ConflitoExecucao, EstadoImpressao
-from src.utils import DIRETORIO_APLICACAO
+from src.utils import RECURSOS
 
 
 class ServidorInterface(ThreadingHTTPServer):
     daemon_threads = True
     ESPERA_FECHAMENTO = 3
 
-    def __init__(self, manipulador, estado, porta):
+    def __init__(self, manipulador, estado, porta, modo_desktop=False):
         super().__init__(('127.0.0.1', porta), manipulador)
         self.estado = estado
+        self.modo_desktop = modo_desktop
+        self.desktop = None
         self.trava_paginas = RLock()
         self.paginas = {}
         self.teve_pagina = False
@@ -52,7 +54,10 @@ class ServidorInterface(ThreadingHTTPServer):
                 if not self.paginas:
                     self.sem_paginas_desde = monotonic()
 
-    def encerrar(self):
+    def encerrar(self, *, confirmado=False):
+        if self.desktop is not None and not confirmado:
+            self.desktop.solicitar_encerramento()
+            return
         with self.trava_paginas:
             if self.fechando:
                 return
@@ -61,6 +66,8 @@ class ServidorInterface(ThreadingHTTPServer):
         Thread(target=self.shutdown, daemon=True).start()
 
     def service_actions(self):
+        if self.modo_desktop:
+            return
         with self.trava_paginas:
             if not self.teve_pagina and monotonic() - self.criado_em >= 120:
                 self.encerrar()
@@ -79,7 +86,7 @@ class ServidorInterface(ThreadingHTTPServer):
         super().server_close()
 
 
-def criar_servidor(estado=None, porta=8766, medidor_abertura=None):
+def criar_servidor(estado=None, porta=8766, medidor_abertura=None, modo_desktop=False):
     estado = estado if estado is not None else EstadoImpressao(medidor_abertura=medidor_abertura)
     token = token_urlsafe(32)
     recursos = {
@@ -87,6 +94,9 @@ def criar_servidor(estado=None, porta=8766, medidor_abertura=None):
         '/impressao.css': ('src/impressao.css', 'text/css; charset=utf-8'),
         '/impressao.js': ('src/impressao.js', 'text/javascript; charset=utf-8'),
         '/nunes-tema.js': ('src/nunes-tema.js', 'text/javascript; charset=utf-8'),
+        '/rolagem.js': ('src/rolagem.js', 'text/javascript; charset=utf-8'),
+        '/icons/tema-lua.svg': ('icons/tema-lua.svg', 'image/svg+xml'),
+        '/icons/tema-lua-sol.svg': ('icons/tema-lua-sol.svg', 'image/svg+xml'),
         '/icons/icone.svg': ('icons/icone.svg', 'image/svg+xml'),
         '/favicon.ico': ('icons/icone.ico', 'image/x-icon'),
         '/icons/icone-192.png': ('icons/icone-192.png', 'image/png'),
@@ -157,6 +167,10 @@ def criar_servidor(estado=None, porta=8766, medidor_abertura=None):
                 servidor.fechar_pagina(pagina, presenca)
 
         def do_GET(self):
+            if self.path == '/desktop/ativar':
+                from desktop_impressao import atender_ativacao
+                atender_ativacao(self)
+                return
             if atender_integracao(self):
                 return
             caminho = urlsplit(self.path).path
@@ -164,9 +178,12 @@ def criar_servidor(estado=None, porta=8766, medidor_abertura=None):
                 self.responder(403, {'erro': 'Acesso não autorizado.'})
             elif caminho in recursos:
                 arquivo, tipo = recursos[caminho]
-                conteudo = (DIRETORIO_APLICACAO / arquivo).read_bytes()
+                conteudo = (RECURSOS / arquivo).read_bytes()
                 if caminho == '/':
                     conteudo = conteudo.replace(b'__TOKEN__', token.encode('ascii'))
+                    conteudo = conteudo.replace(b'__DESKTOP__', b'1' if servidor.modo_desktop else b'0')
+                    from desktop_preferencias import ler_tema
+                    conteudo = conteudo.replace(b'__TEMA__', (ler_tema() if servidor.modo_desktop else 'escuro').encode('ascii'))
                 self.responder(200, conteudo, tipo)
             elif not self.autorizado():
                 self.responder(403, {'erro': 'Acesso não autorizado.'})
@@ -183,6 +200,10 @@ def criar_servidor(estado=None, porta=8766, medidor_abertura=None):
                 self.responder(404, {'erro': 'Recurso não encontrado.'})
 
         def do_POST(self):
+            if self.path == '/desktop/ativar':
+                from desktop_impressao import atender_ativacao
+                atender_ativacao(self)
+                return
             if atender_integracao(self):
                 return
             if not self.autorizado():
@@ -215,6 +236,13 @@ def criar_servidor(estado=None, porta=8766, medidor_abertura=None):
                     estado.solicitar_parada()
                 elif caminho == '/api/encerrar':
                     servidor.encerrar()
+                elif caminho == '/api/tema' and servidor.modo_desktop:
+                    from desktop_preferencias import salvar_tema
+                    try:
+                        salvar_tema(dados.get('tema'))
+                    except OSError:
+                        self.responder(500, {'erro': 'Não foi possível salvar a preferência visual. Tente novamente.'})
+                        return
                 elif caminho == '/api/fechar-pagina':
                     pagina = dados.get('pagina')
                     if not isinstance(pagina, str) or not pagina or len(pagina) > 100:
@@ -230,5 +258,5 @@ def criar_servidor(estado=None, porta=8766, medidor_abertura=None):
                 self.responder(400, {'erro': str(erro)})
 
     with medidor_abertura.etapa('servidor_local') if medidor_abertura is not None else nullcontext():
-        servidor = ServidorInterface(Manipulador, estado, porta)
+        servidor = ServidorInterface(Manipulador, estado, porta, modo_desktop)
     return servidor, estado

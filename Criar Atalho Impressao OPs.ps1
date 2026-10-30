@@ -1,19 +1,11 @@
 $ErrorActionPreference = 'Stop'
-$destinoImpressao = $null
-foreach ($ambienteImpressao in @('.venv', 'venv32')) {
-    $pythonImpressao = Join-Path $PSScriptRoot "$ambienteImpressao\Scripts\pythonw.exe"
-    if (Test-Path -LiteralPath $pythonImpressao -PathType Leaf) {
-        $destinoImpressao = $pythonImpressao
-        break
-    }
+$destinoImpressao = Join-Path $PSScriptRoot 'Impressao OPs.exe'
+$argumentosImpressao = @()
+if (-not (Test-Path -LiteralPath $destinoImpressao -PathType Leaf)) {
+    $destinoImpressao = Join-Path $PSScriptRoot '.venv-desktop\Scripts\python.exe'
+    $argumentosImpressao = @((Join-Path $PSScriptRoot 'impressao.py'))
 }
-if (-not $destinoImpressao) { throw 'Instale o ambiente Python conforme o README.md.' }
-$shellImpressao = New-Object -ComObject WScript.Shell
-$atalhoImpressao = $shellImpressao.CreateShortcut((Join-Path $PSScriptRoot 'Abrir Impressao OPs.lnk'))
-$atalhoImpressao.TargetPath = $destinoImpressao
-$atalhoImpressao.Arguments = '"' + (Join-Path $PSScriptRoot 'impressao.py') + '"'
-$atalhoImpressao.WorkingDirectory = $PSScriptRoot
-$atalhoImpressao.IconLocation = (Join-Path $PSScriptRoot 'icons\icone.ico') + ',0'
-$atalhoImpressao.Description = 'Imprimir ordens de produção por intervalo ou lista'
-$atalhoImpressao.Save()
-Write-Output 'Atalho criado na pasta do projeto com o ícone Nunes.'
+if (-not (Test-Path -LiteralPath $destinoImpressao -PathType Leaf)) { throw 'Prepare o ambiente desktop conforme DESKTOP.md.' }
+& $destinoImpressao @argumentosImpressao --criar-atalho (Join-Path $PSScriptRoot 'Abrir Impressao OPs.lnk')
+if ($LASTEXITCODE -ne 0) { throw 'Não foi possível criar o atalho desktop.' }
+Write-Output 'Atalho desktop criado na pasta do projeto.'

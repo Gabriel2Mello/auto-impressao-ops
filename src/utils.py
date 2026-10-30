@@ -9,6 +9,7 @@ else:
     DIRETORIO_APLICACAO = Path(__file__).resolve().parent.parent
 
 ARQUIVO_ORDENS = DIRETORIO_APLICACAO / 'ordem_producao.txt'
+RECURSOS = Path(getattr(sys, '_MEIPASS', DIRETORIO_APLICACAO))
 
 
 def coletar_intervalos():

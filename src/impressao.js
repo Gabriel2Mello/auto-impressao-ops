@@ -1,13 +1,19 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const token = document.querySelector('meta[name="impressao-token"]').content;
+const desktop = document.querySelector('meta[name="impressao-desktop"]')?.content === '1';
+let salvamentoTema = Promise.resolve(true);
 let modo = 'intervalos', conferido = null, ocupado = false, online = false, encerrado = false, pendente = false, impressora = '';
 let numeroIntervalo = 0;
 const pagina = crypto.randomUUID();
 const presenca = new AbortController();
-let ultimoEstado = '', saindo = false, historico = [];
+let ultimoEstado = '', saindo = false, historico = [], faseAtual = 'pronto';
 
 function atualizarBotoes() {
+  $('tabela-conferencia').hidden = !conferido;
+  $('conferencia-vazia').hidden = Boolean(conferido);
+  $('acoes-impressao').hidden = !conferido;
+  $('conferir').classList.toggle('botao-principal', !conferido);
   $('campos').disabled = ocupado || pendente || encerrado;
   $('conferir').disabled = ocupado || pendente || !online || encerrado;
   $('imprimir').disabled = !conferido || ocupado || pendente || !online || !impressora || encerrado || historico.some(item => ['envio_iniciado', 'incerto'].includes(item.situacao));
@@ -21,7 +27,8 @@ function atualizarBotoes() {
 }
 function invalidar() {
   conferido = null;
-  $('resumo').textContent = 'Confira o lote para atualizar as OPs antes de imprimir.';
+  if (faseAtual === 'pronto') $('status').textContent = 'Aguardando conferência.';
+  $('resumo').textContent = 'Informe as OPs e confira o lote.';
   $('lotes').replaceChildren();
   const linha = document.createElement('tr'), celula = document.createElement('td');
   celula.colSpan = 3; celula.className = 'vazio'; celula.textContent = 'Aguardando conferência das OPs.';
@@ -33,14 +40,14 @@ function adicionarIntervalo() {
   if ($('intervalos').children.length >= 100) return;
   const linha = document.createElement('div'); linha.className = 'intervalo';
   const numero = ++numeroIntervalo;
-  for (const [chave, titulo, valor] of [['de', 'De', ''], ['para', 'Para', ''], ['setor', 'Setor', '10']]) {
+  for (const [chave, titulo, valor] of [['de', 'De', ''], ['para', 'Até', ''], ['setor', 'Setor', '10']]) {
     const grupo = document.createElement('div'), label = document.createElement('label'), input = document.createElement('input');
     input.id = `${chave}-${numero}`; input.dataset.campo = chave; input.inputMode = 'numeric';
     input.maxLength = chave === 'setor' ? 6 : 12; input.autocomplete = 'off'; input.value = valor;
     input.placeholder = chave === 'de' ? 'Ex.: 123456' : chave === 'para' ? 'Mesma OP' : '10';
     label.htmlFor = input.id; label.textContent = titulo; grupo.append(label, input); linha.append(grupo);
   }
-  const remover = document.createElement('button'); remover.type = 'button'; remover.textContent = 'Remover';
+  const remover = document.createElement('button'); remover.type = 'button'; remover.textContent = '×'; remover.title = 'Remover intervalo';
   remover.setAttribute('aria-label', `Remover intervalo ${numero}`);
   remover.onclick = () => { linha.remove(); if (!$('intervalos').children.length) adicionarIntervalo(); invalidar(); };
   linha.append(remover); $('intervalos').append(linha); invalidar();
@@ -64,17 +71,21 @@ function mostrarEstado(estado) {
   const assinatura = JSON.stringify(estado);
   if (assinatura === ultimoEstado) return;
   ultimoEstado = assinatura;
+  faseAtual = estado.fase;
   ocupado = estado.ocupado; impressora = estado.impressora;
   historico = estado.historico || [];
   mostrarHistorico();
   const fases = {pronto: 'Pronto', imprimindo: 'Em andamento', concluido: 'Concluído', interrompido: 'Interrompido', erro: 'Conferir impressão'};
   $('fase').textContent = fases[estado.fase] || estado.fase;
   $('fase').classList.toggle('erro', estado.fase === 'erro');
-  $('status').textContent = estado.mensagem;
+  $('status').textContent = estado.fase === 'pronto' ? (conferido ? 'Lote pronto para imprimir.' : 'Aguardando conferência.') : estado.mensagem;
+  $('resumo-progresso').hidden = !estado.total;
+  $('aviso-operacao').hidden = !ocupado;
+  $('ordem-atual').hidden = !estado.atual;
   $('ordem-atual').textContent = estado.atual ? `Última OP em processamento: ${estado.atual} · setor ${estado.setor}` : 'Informe as ordens e confira o lote antes de imprimir.';
   $('enviadas').textContent = estado.enviadas; $('total').textContent = estado.total;
   $('progresso').max = estado.total || 1; $('progresso').value = estado.enviadas;
-  $('impressora').textContent = impressora ? `Impressora: ${impressora}` : 'Nenhuma impressora selecionada. Clique em Selecionar impressora.';
+  $('impressora').textContent = impressora || 'Nenhuma impressora selecionada.';
   $('aviso-impressora').textContent = estado.aviso_impressora || '';
   $('atividade').replaceChildren();
   for (const mensagem of estado.atividade.length ? estado.atividade : ['Nenhuma OP enviada nesta execução.']) {
@@ -83,6 +94,7 @@ function mostrarEstado(estado) {
   atualizarBotoes();
 }
 function mostrarHistorico() {
+  $('pendencias').hidden = ocupado || !historico.some(item => ['envio_iniciado', 'incerto'].includes(item.situacao));
   $('recuperacao').replaceChildren();
   const rotulos = {pendente: 'Não iniciada', envio_iniciado: ocupado ? 'Envio em andamento' : 'Incerto: conferir fila e papel', incerto: 'Incerto: conferir fila e papel', concluido: 'Envio concluído pelo fluxo', conferido_enviado: 'Envio confirmado manualmente', conferido_nao_enviado: 'Não enviado: conferido manualmente'};
   if (!historico.length) { $('recuperacao').textContent = 'Nenhum lote salvo nesta versão.'; return; }
@@ -191,7 +203,9 @@ $('formulario').onsubmit = async evento => {
       }
       $('lotes').append(linha);
     }
-    $('resumo').textContent = `${resultado.total} OPs · ${resultado.lotes.length} lote(s) por setor. Confira os números e clique em Imprimir lote.`;
+    $('resumo').textContent = `${resultado.total} OPs · ${resultado.lotes.length} setor(es)`;
+    $('imprimir').textContent = `Imprimir ${resultado.total} OPs`;
+    if (!ocupado) $('status').textContent = 'Lote pronto para imprimir.';
     $('titulo-conferencia').focus();
   } catch (erro) { conferido = null; $('mensagem').textContent = erro.message; }
   finally { pendente = false; atualizarBotoes(); }
@@ -210,15 +224,16 @@ $('encerrar').onclick = async () => {
   if (encerrado) return;
   if (!confirm('Deseja realmente encerrar o programa? A OP em andamento será concluída antes de parar.')) return;
   try {
+    if (desktop && !await salvamentoTema) return;
     await api('/api/encerrar', {}); encerrado = true; online = false; atualizarBotoes();
     presenca.abort();
     $('encerrar').disabled = true; $('parar').hidden = true;
-    $('status').textContent = ocupado ? 'Encerrando após a OP em andamento. Você pode fechar esta aba.' : 'Programa encerrado. Você pode fechar esta aba.';
+    $('status').textContent = desktop ? 'Encerrando após a OP atual. Aguarde a janela fechar.' : ocupado ? 'Encerrando após a OP em andamento. Você pode fechar esta aba.' : 'Programa encerrado. Você pode fechar esta aba.';
     $('conexao').textContent = 'Painel encerrado';
   } catch (erro) { $('mensagem').textContent = erro.message; }
 };
 window.addEventListener('beforeunload', evento => {
-  if (encerrado) return;
+  if (encerrado || desktop) return;
   evento.preventDefault();
   evento.returnValue = '';
 });
@@ -241,5 +256,22 @@ document.querySelectorAll('[data-modo]').forEach(botao => { botao.onclick = () =
 }; });
 $('campos').addEventListener('input', invalidar);
 $('adicionar').onclick = adicionarIntervalo;
-window.NunesTema.iniciar({controle:$('tema'),chave:'nunes-impressao-tema',cookie:true});
+$('revisar-pendencias').onclick = () => {
+  $('historico-painel').open = true;
+  $('titulo-recuperacao').focus();
+  $('historico-painel').scrollIntoView({block:'start', behavior:'auto'});
+};
+const tema = window.NunesTema.iniciar({controle:$('tema'),chave:'nunes-impressao-tema',cookie:true});
+$('tema').addEventListener('click', () => { document.documentElement.dataset.temaAnimado = '1'; });
+if (desktop) {
+  tema.aplicar(document.querySelector('meta[name="impressao-tema"]').content);
+  $('tema').addEventListener('click', () => {
+    const valor = document.documentElement.dataset.tema;
+    salvamentoTema = salvamentoTema.then(async () => {
+      try {
+        await api('/api/tema', {tema:valor}); $('tema-status').textContent = ''; return true;
+      } catch (erro) { $('tema-status').textContent = erro.message; return false; }
+    });
+  });
+}
 adicionarIntervalo(); acompanhar();

@@ -2,6 +2,11 @@
 
 Painel web local para imprimir ordens de produção no Sisplan por **De / Para** ou por **Lista de OPs**. A lista é digitada ou colada na interface; não há carregamento de arquivo. O fluxo de console em `main.py` continua disponível.
 
+A abertura padrão agora usa a janela desktop, com preparação/conferência e
+acompanhamento no padrão Cofre/Busca e Move. Consulte [DESKTOP.md](DESKTOP.md)
+para preparar o ambiente separado de 32 bits, abrir, empacotar e validar.
+As instruções de navegador abaixo continuam válidas usando `impressao.py --web`.
+
 ## Instalação e abertura
 
 Use Python de **32 bits**, compatível com a automação Sisplan já utilizada nos projetos Nunes. Na pasta do projeto:
@@ -19,7 +24,12 @@ Se a fila salva tiver sido removida ou renomeada, a ferramenta informa o problem
 
 A seleção permanece fixa durante todo o lote, inclusive entre setores, no console e na web. O console valida a fila e exibe **Impressora do lote** antes de iniciar a automação do Sisplan; também registra o nome no diário operacional. Alterações de ambiente ou preferência durante a execução não trocam a fila desse lote. Na web, a impressora é validada novamente antes de iniciar. Se outra aba tiver alterado a seleção, confira a impressora exibida e prepare o lote novamente. Uma falha ao salvar a preferência é exibida no console ou painel e registrada no log, sem interromper nem repetir os envios.
 
-Abra `Abrir Impressao OPs.cmd` ou execute `.\.venv\Scripts\python.exe impressao.py`. O painel abre em `http://127.0.0.1:8766`, acessível somente neste computador. A preferência de tema fica salva no mesmo navegador. Se outra instância estiver aberta ou a porta estiver ocupada, a abertura informa a falha.
+Abra `Abrir Impressao OPs.cmd` para a janela desktop. Para usar o navegador,
+execute `.\.venv\Scripts\python.exe impressao.py --web`: o painel abre em
+`http://127.0.0.1:8766`, acessível somente neste computador, e o tema fica salvo
+no navegador. No desktop, a porta é dinâmica e tema/posição são persistidos
+localmente. Uma nova abertura desktop ativa a janela existente; uma instância
+web anterior deve ser encerrada normalmente antes de mudar de modo.
 
 Para criar um atalho com o ícone Nunes, execute `Criar Atalho Impressao OPs.ps1`; o arquivo `.lnk` é criado na própria pasta e pode ser copiado para a área de trabalho. Recrie-o se mover o projeto.
 
@@ -52,7 +62,13 @@ O modo de console mantém `MODO_ENTRADA` em `main.py` e a leitura de `ordem_prod
 
 ## Visual e implementação
 
-Visual baseado nos painéis locais de `nunes-contas-receber` e `auto-pedidos-havan`: cartões, conferência, andamento e temas claro/escuro, com tema escuro por padrão e alternância manual salva entre sessões. O ícone coração com N, cor `#475569`, foi copiado das exportações de `auto-impressao-ops` do hub `estrutura-nunes`. A assinatura **g2mello · Essencial** inclui os dois traços sob os `l` e o link de autoria. Os recursos ficam neste projeto; sua execução não depende do caminho do hub.
+Visual adaptado ao [guia de telas Nunes](../estrutura-nunes/identidade-visual/interfaces/guia-telas-automacoes.md),
+com Cofre e Busca e Move como referências: preparação/conferência à esquerda,
+impressora e andamento à direita, histórico recolhido abaixo, tema no cabeçalho e Encerrar com ícone no
+rodapé. Temas claro/escuro, com escuro por padrão e preferência persistida.
+O ícone coração com N conserva a cor `#475569`. A assinatura **g2mello · Essencial**
+inclui os dois traços sob os `l` e o link de autoria. Os recursos ficam neste
+projeto; sua execução não depende do caminho do hub.
 
 O servidor usa a biblioteca padrão Python, sem framework web ou build de frontend. Apenas a execução real importa `pywinauto`. Os comandos da API exigem token da sessão, origem local e Host correspondente; a conferência não acessa o Sisplan nem a impressora.
 

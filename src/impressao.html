@@ -1,9 +1,11 @@
 <!doctype html>
-<html lang="pt-BR" data-tema="escuro">
+<html lang="pt-BR" data-tema="__TEMA__">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="impressao-token" content="__TOKEN__">
+  <meta name="impressao-desktop" content="__DESKTOP__">
+  <meta name="impressao-tema" content="__TEMA__">
   <title>Impressão de OPs · Nunes</title>
   <link rel="icon" href="/icons/icone.svg" type="image/svg+xml">
   <link rel="alternate icon" href="/favicon.ico">
@@ -11,28 +13,30 @@
   <link rel="stylesheet" href="/impressao.css">
   <script src="/nunes-tema.js"></script>
 <script src="/impressao.js" defer></script>
+<script src="/rolagem.js" defer></script>
 </head>
 <body>
 <main>
   <header class="cabecalho">
-    <div class="marca"><img src="/icons/icone.svg" width="48" height="48" alt=""><div><p class="sobretitulo">NUNES · AUTOMAÇÕES</p><h1>Impressão de OPs</h1><p class="muted">Organize as ordens por setor e acompanhe o envio para impressão.</p></div></div>
-    <div class="acoes"><button id="tema" type="button">Tema claro</button><button id="encerrar" type="button">Encerrar</button></div>
+    <div class="marca"><img src="/icons/icone.svg" width="32" height="32" alt="" draggable="false"><h1>Impressão de OPs <span>· Nunes</span></h1></div>
+    <button id="tema" class="botao-icone" type="button" aria-label="Ativar tema claro" title="Alternar tema">Tema claro</button>
   </header>
+  <p id="tema-status" class="mensagem" role="status"></p>
 
   <div class="principal">
+    <div class="preparacao">
     <section class="cartao entrada" aria-labelledby="titulo-entrada">
-      <div class="titulo-secao"><h2 id="titulo-entrada">Preparar impressão</h2><span class="etiqueta">Uma OP por vez</span></div>
+      <div class="titulo-secao"><h2 id="titulo-entrada">Preparar lote</h2></div>
       <div class="modos" role="group" aria-label="Forma de informar as ordens">
-        <button type="button" data-modo="intervalos" aria-pressed="true">De / Para</button>
+        <button type="button" data-modo="intervalos" aria-pressed="true">Por intervalo</button>
         <button type="button" data-modo="lista" aria-pressed="false">Lista de OPs</button>
       </div>
       <form id="formulario">
         <fieldset id="campos">
           <div id="modo-intervalos">
-            <p class="muted ajuda">Informe o início e o fim de cada intervalo, com o setor de destino.</p>
             <div id="intervalos"></div>
             <button id="adicionar" class="adicionar" type="button">+ Adicionar intervalo</button>
-            <p class="dica">Para uma única OP, preencha apenas “De”. O setor padrão é 10.</p>
+            <p class="dica">Uma única OP? Preencha apenas “De”. Setor padrão: 10.</p>
           </div>
           <div id="modo-lista" hidden>
             <p class="muted ajuda">Cole ou digite as OPs que deseja imprimir para o mesmo setor.</p>
@@ -47,33 +51,47 @@
       </form>
     </section>
 
-    <section class="cartao andamento" aria-labelledby="titulo-andamento">
-      <div class="titulo-secao"><h2 id="titulo-andamento">Andamento</h2><span id="fase" class="etiqueta">Pronto</span></div>
-      <p id="status" class="status" role="status">Pronto para conferir as OPs.</p>
-      <p id="ordem-atual" class="muted">Informe as ordens e confira o lote antes de imprimir.</p>
-      <progress id="progresso" value="0" max="1" aria-label="OPs enviadas para impressão"></progress>
-      <div class="contagem"><span><strong id="enviadas">0</strong> enviadas</span><span><strong id="total">0</strong> no lote</span></div>
-      <div class="orientacao"><p>Abra o Sisplan da empresa 002 no relatório de facção, na aba <strong>Envio</strong>.</p><p>Durante o processamento, aguarde sem usar o teclado ou o mouse.</p></div>
-      <p id="impressora" class="dica">Verificando a impressora…</p>
-      <p id="aviso-impressora" class="mensagem" role="status"></p>
-      <div class="acoes enviar"><button id="selecionar-impressora" type="button" disabled>Selecionar impressora</button></div>
-      <div class="acoes enviar"><button id="parar" type="button" hidden>Parar após a OP atual</button></div>
-      <p class="dica papel">O envio ao Sisplan não confirma a saída em papel. Confira as OPs na impressora.</p>
-    </section>
-  </div>
-
   <section class="cartao conferencia" aria-labelledby="titulo-conferencia">
-    <div class="titulo-secao"><div><h2 id="titulo-conferencia" tabindex="-1">Conferência do lote</h2><p id="resumo" class="dica">Nenhum lote conferido.</p></div><button id="imprimir" type="button" class="botao-principal" disabled>Imprimir lote</button></div>
-    <div class="tabela"><table><thead><tr><th scope="col">Setor</th><th scope="col">Quantidade</th><th scope="col">Ordens de produção</th></tr></thead><tbody id="lotes"><tr><td colspan="3" class="vazio">As OPs aparecerão aqui depois da conferência.</td></tr></tbody></table></div>
-    <p class="dica nota">OPs repetidas no mesmo setor entram uma única vez no lote. As ordens recebem no mínimo seis dígitos, como no fluxo atual.</p>
+    <div class="titulo-secao"><div><h2 id="titulo-conferencia" tabindex="-1">Conferência do lote</h2><p id="resumo" class="dica">Informe as OPs e confira o lote.</p></div></div>
+    <div id="tabela-conferencia" class="tabela" hidden><table><thead><tr><th scope="col">Setor</th><th scope="col">Quantidade</th><th scope="col">Ordens de produção</th></tr></thead><tbody id="lotes"><tr><td colspan="3" class="vazio">As OPs aparecerão aqui depois da conferência.</td></tr></tbody></table></div>
+    <p id="conferencia-vazia" class="vazio">As OPs aparecerão aqui após a conferência.</p>
+    <div id="acoes-impressao" hidden><p class="dica nota">Confira os números e os setores. OPs repetidas no mesmo setor entram uma única vez.</p><p class="dica requisito">Antes de imprimir, abra o Sisplan da empresa 002 no relatório de facção, aba <strong>Envio</strong>.</p><div class="acoes enviar"><button id="imprimir" type="button" class="botao-principal" disabled>Imprimir lote</button></div></div>
   </section>
-  <section class="cartao conferencia" aria-labelledby="titulo-recuperacao">
-    <h2 id="titulo-recuperacao">Histórico e recuperação</h2>
-    <p class="dica">Último lote salvo neste computador e incertezas anteriores. Após uma interrupção, confira a fila e o papel antes de registrar o resultado. Nenhuma OP é retomada automaticamente.</p>
-    <div id="recuperacao"></div>
-    <p id="erro-recuperacao" class="mensagem" role="alert"></p>
+    </div>
+    <aside class="lateral" aria-label="Impressora e acompanhamento">
+      <section class="cartao painel-impressora" aria-labelledby="titulo-fila">
+        <h2 id="titulo-fila">Impressora</h2>
+        <p id="impressora" class="nome-impressora">Verificando a impressora…</p>
+        <p id="aviso-impressora" class="mensagem" role="status"></p>
+        <button id="selecionar-impressora" type="button" disabled>Alterar impressora</button>
+      </section>
+      <section class="cartao andamento" aria-labelledby="titulo-andamento">
+        <div class="titulo-secao"><h2 id="titulo-andamento">Andamento</h2><span id="fase" class="etiqueta">Pronto</span></div>
+        <p id="status" class="status" role="status">Aguardando conferência.</p>
+        <p id="ordem-atual" class="muted" hidden></p>
+        <div id="resumo-progresso" hidden>
+          <progress id="progresso" value="0" max="1" aria-label="OPs enviadas para impressão"></progress>
+          <p class="contagem"><strong id="enviadas">0</strong> de <strong id="total">0</strong> OPs enviadas</p>
+          <p class="dica papel">Confira a saída em papel na impressora.</p>
+        </div>
+        <p id="aviso-operacao" class="orientacao" hidden>Impressão em andamento. Aguarde sem usar o teclado ou o mouse.</p>
+        <div class="acoes enviar"><button id="parar" type="button" hidden>Parar após a OP atual</button></div>
+      </section>
+      <div id="pendencias" class="alerta-pendencias" role="status" hidden>
+        <p>Há OPs com envio incerto. Confira a fila e o papel antes de continuar.</p>
+        <button id="revisar-pendencias" type="button">Revisar pendências</button>
+      </div>
+      <details class="orientacoes"><summary>Orientações do Sisplan</summary><p>Use a empresa 002, relatório de facção, aba <strong>Envio</strong>. A automação processa uma OP por vez.</p><p>As ordens recebem no mínimo seis dígitos. O envio ao Sisplan não confirma a saída em papel.</p></details>
+    </aside>
+  </div>
+  <section class="suporte">
+    <details id="historico-painel" class="recuperacao"><summary id="titulo-recuperacao">Histórico e recuperação</summary>
+      <p class="dica">Último lote salvo neste computador e incertezas anteriores. Após uma interrupção, confira a fila e o papel antes de registrar o resultado. Nenhuma OP é retomada automaticamente.</p>
+      <div id="recuperacao"></div><p id="erro-recuperacao" class="mensagem" role="alert"></p>
+    </details>
+    <details id="atividade-painel"><summary>Atividade desta execução</summary><ol id="atividade"><li>Nenhuma OP enviada nesta execução.</li></ol></details>
+    <p id="conexao" class="dica" role="status">Conectando ao painel local…</p>
   </section>
-  <section class="suporte"><details><summary>Atividade desta execução</summary><ol id="atividade"><li>Nenhuma OP enviada nesta execução.</li></ol></details><p id="conexao" class="dica" role="status">Conectando ao painel local…</p></section>
 </main>
 <dialog id="dialogo-impressora" aria-labelledby="titulo-impressora" aria-describedby="ajuda-impressora">
   <h2 id="titulo-impressora">Selecionar impressora</h2>
@@ -84,6 +102,6 @@
   <p id="erro-impressora" class="mensagem" role="alert"></p>
   <div class="acoes enviar"><button id="atualizar-impressoras" type="button">Atualizar lista</button><button id="cancelar-impressora" type="button">Cancelar</button><button id="confirmar-impressora" class="botao-principal" type="button" disabled>Usar impressora</button></div>
 </dialog>
-<footer class="assinatura">Desenvolvido por <a href="https://github.com/Gabriel2Mello" target="_blank" rel="noopener noreferrer" aria-label="g2mello — perfil no GitHub">g2me<span class="assinatura-ll"><span>l</span><span>l</span></span>o</a></footer>
+<footer class="rodape"><p class="assinatura">Desenvolvido por <a href="https://github.com/Gabriel2Mello" target="_blank" rel="noopener noreferrer" aria-label="g2mello — perfil no GitHub">g2me<span class="assinatura-ll"><span>l</span><span>l</span></span>o</a></p><button id="encerrar" type="button">Encerrar<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M9 12h12m-5-5 5 5-5 5"/></svg></button></footer>
 </body>
 </html>

@@ -1,5 +1,8 @@
 __pycache__
 .venv/
+.venv-desktop/
+build/
+dist/
 venv32/
 .local/
 *.log

@@ -8,12 +8,14 @@ from src.diario_impressao import DiarioImpressao
 from src.impressoras import Impressoras
 from src.servico_impressao import EstadoImpressao
 
-CONTROLES = '''<section class="demonstracao" aria-label="Demonstração">
-<div><strong>Demonstração</strong><p>Dados fictícios · sem Sisplan ou impressão real</p></div>
+CONTROLES = '''<details id="configuracoes-demo" class="configuracoes-demo">
+<summary class="botao-icone" title="Configurações da demonstração" aria-label="Configurações da demonstração"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9m4 0h3M4 17h3m4 0h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></summary>
+<section class="menu-demo" aria-label="Demonstração">
+<strong>Demonstração</strong><p>Dados fictícios · sem Sisplan ou impressão real</p>
 <label>Resultado simulado<select id="demo-resultado"><option value="sucesso">Conclusão normal</option><option value="erro">Falha durante o envio</option></select></label>
 <button id="demo-exemplo" type="button">Preencher exemplo</button>
 <span id="demo-mensagem" role="status"></span>
-</section><script src="/demonstracao.js" defer></script>'''
+</section></details><script src="/demonstracao.js" defer></script>'''
 
 
 class DiarioDemonstracao(DiarioImpressao):

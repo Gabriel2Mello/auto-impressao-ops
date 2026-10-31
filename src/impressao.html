@@ -19,11 +19,10 @@
 <main>
   <header class="cabecalho">
     <div class="marca"><img src="/icons/icone.svg" width="32" height="32" alt="" draggable="false"><h1>Impressão de OPs <span>· Nunes</span></h1></div>
-    <button id="tema" class="botao-icone" type="button" aria-label="Ativar tema claro" title="Alternar tema">Tema claro</button>
+    <div class="controles-cabecalho"><button id="tema" class="botao-icone" type="button" aria-label="Ativar tema claro" title="Alternar tema">Tema claro</button>__CONTROLES_DEMO__</div>
   </header>
   <p id="tema-status" class="mensagem" role="status"></p>
 
-  __CONTROLES_DEMO__
       <section class="cartao painel-impressora" aria-labelledby="titulo-fila">
         <h2 id="titulo-fila">Impressora</h2>
         <p id="impressora" class="nome-impressora">Verificando a impressora…</p>
@@ -51,7 +50,10 @@
           </div>
           <div id="modo-lista" hidden>
             <label for="ordens">Ordens de produção</label>
-            <textarea id="ordens" rows="5" maxlength="60000" placeholder="123456&#10;123457&#10;123458" aria-describedby="dica-lista"></textarea>
+            <div class="campo-ordens">
+              <textarea id="ordens" rows="5" maxlength="60000" placeholder="123456&#10;123457&#10;123458" aria-describedby="dica-lista contagem-ordens"></textarea>
+              <span id="contagem-ordens" class="contagem-ordens" role="status" aria-live="polite" aria-atomic="true">Contagem: 0</span>
+            </div>
             <p id="dica-lista" class="dica">Uma OP por linha, separadas por espaço ou vírgula.</p>
             <div id="rodape-lista" class="rodape-lista"><div class="setor-lista"><label for="setor-lista">Setor</label><input id="setor-lista" inputmode="numeric" maxlength="6" value="10" autocomplete="off"></div></div>
           </div>
@@ -86,7 +88,10 @@
         </div>
         <div class="controles-execucao"><p id="aviso-operacao" class="orientacao" hidden>Aguarde sem usar teclado ou mouse.</p><button id="parar" type="button" hidden>Parar após a OP atual</button></div>
       </section>
+      <div class="area-resultados">
+      <button id="acompanhar-atual" type="button" title="Ir à última operação processada e retomar o acompanhamento" aria-label="Ir à última operação processada e retomar o acompanhamento" hidden><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
       <div id="resultados" class="rolagem-resultados" tabindex="0" role="region" aria-label="Resultados por OP"><p class="dica">Nenhuma execução iniciada.</p></div>
+      </div>
       <p id="conexao" class="dica" role="status">Conectando ao painel local…</p>
     </aside>
   </div>

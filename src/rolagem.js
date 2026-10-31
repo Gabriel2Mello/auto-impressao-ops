@@ -2,7 +2,7 @@
 // Adaptado de Busca e Move: inclui a lista de resultados da Impressão.
 (() => {
   if (!window.ResizeObserver || !window.PointerEvent) return;
-  const alvos = [document.documentElement, ...document.querySelectorAll('#ordens,.rolagem-preparacao,.rolagem-resultados,dialog')];
+  const alvos = [document.documentElement, ...document.querySelectorAll('#ordens,.rolagem-preparacao,.rolagem-resultados,dialog,.menu-demo')];
   let quadro = 0;
   const barras = alvos.map(alvo => {
     const trilho = document.createElement('div'), polegar = document.createElement('div');

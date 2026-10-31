@@ -23,11 +23,14 @@ fieldset{min-width:0;padding:0;margin:0;border:0}.ajuda{font-size:13px;margin-bo
 .rodape{flex-shrink:0;display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;min-height:44px;margin-top:12px;border-top:1px solid var(--borda);padding-inline:max(24px,calc((100% - 1220px)/2 + 24px));color:var(--muted);font-size:12px}.assinatura a{color:inherit;font-weight:600;text-decoration:none;white-space:nowrap}.assinatura a:hover{color:var(--texto)}.assinatura-ll{display:inline-flex;align-items:baseline;gap:.07em}.assinatura-ll span{display:inline-block;min-width:.19em;text-align:center;line-height:1;border-bottom:.075em solid currentColor;padding-bottom:.075em}#encerrar{display:inline-flex;align-items:center;gap:8px;padding:4px 0;border:0;background:transparent;color:var(--muted);font-size:12px}#encerrar svg{width:18px;height:18px;flex-shrink:0}
 dialog{width:min(520px,calc(100% - 32px));max-height:calc(100dvh - 32px);overflow-y:auto;padding:20px;background:var(--cartao);color:var(--texto);border:1px solid var(--borda);border-radius:9px}dialog::backdrop{background:#0007}dialog h2{margin-bottom:10px}dialog label{margin-top:16px}dialog select{width:100%;padding:6px;min-height:110px}dialog option{padding:8px}dialog .acoes{justify-content:flex-end}#aviso-lista-impressoras{margin-top:10px}
 .rolagem-sobreposta{scrollbar-width:none}.rolagem-sobreposta::-webkit-scrollbar{display:none}.barra-rolagem{position:fixed;z-index:6;width:10px;color:var(--muted);pointer-events:none}.barra-rolagem-polegar{position:absolute;width:100%;border:2px solid transparent;border-radius:8px;background:currentColor;background-clip:padding-box;opacity:.65;pointer-events:auto;touch-action:none;cursor:default}.barra-rolagem-polegar:hover,.barra-rolagem-polegar:active{opacity:1}
+.campo-ordens{position:relative}
+#ordens{padding-bottom:29px}
+.contagem-ordens{position:absolute;right:24px;bottom:7px;color:var(--muted);background:transparent;font:12px/1.5 "Segoe UI",system-ui,sans-serif;font-variant-numeric:tabular-nums;pointer-events:none;user-select:none}
 /* Mesmo efeito da Cofre: somente após troca manual, respeitando movimento reduzido. */
 @media(prefers-reduced-motion:no-preference){
   :root[data-tema-animado] :where(body,button,input,textarea,select,h1 span,.dica,.muted,
     .preparacao,.cartao,.lateral,.modos,.etiqueta,.mensagem,.conferencia,th,td,.vazio,.contagem,
-    .contagem strong,.orientacao,.alerta-pendencias,.suporte,.suporte details,.rodape){
+    .contagem strong,.contagem-ordens,.orientacao,.alerta-pendencias,.suporte,.suporte details,.rodape){
     transition:background-color 150ms ease,color 150ms ease,border-color 150ms ease;
   }
   :root[data-tema-animado] :where(input,textarea)::placeholder{transition:color 150ms ease}
@@ -45,7 +48,6 @@ dialog{width:min(520px,calc(100% - 32px));max-height:calc(100dvh - 32px);overflo
 @media(max-width:700px){main,.rodape{padding-inline:18px}}
 @media(max-width:430px){main,.rodape{padding-inline:12px}h1{font-size:19px}h1 span{display:none}.intervalo{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 56px 28px;gap:6px}.intervalo button{width:28px}.intervalo input{padding-inline:6px}.intervalo label{font-size:12px}.suporte{flex-direction:column}.suporte details{max-width:100%}}
 
-.demonstracao{display:flex;align-items:center;flex-wrap:wrap;gap:12px 20px;padding:12px 0;margin-bottom:24px;border-block:1px solid var(--borda);font-size:13px}.demonstracao label{margin:0}.demonstracao select{margin-left:8px;padding:6px;max-width:100%}.demonstracao p{color:var(--muted)}.demonstracao button{font-size:14px}
 
 /* Resultados: somente a lista cresce e rola dentro da coluna. */
 .lateral>*{flex-shrink:0}.rolagem-resultados{flex:1;min-height:0;overflow-y:auto;overflow-wrap:anywhere;overscroll-behavior-y:contain}
@@ -80,4 +82,21 @@ dialog{width:min(520px,calc(100% - 32px));max-height:calc(100dvh - 32px);overflo
 
 .rodape-lista{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-top:12px}.rodape-lista .setor-lista{margin:0;flex:0 1 140px}.rodape-lista #setor-lista,.rodape-lista #conferir{height:44px;min-height:44px}
 
+.resultado{position:relative;padding-right:76px}
+.resultado:last-child{border-bottom:0}
+.posicao-resultado{position:absolute;top:14px;right:8px;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--muted);user-select:none}
+.resultado:first-child .posicao-resultado{top:0}
+.lateral>.area-resultados{position:relative;display:flex;flex:1;min-height:0;min-width:0}
+#acompanhar-atual{position:absolute;right:16px;bottom:12px;z-index:7;display:flex;align-items:center;justify-content:center;width:40px;height:40px;padding:8px;box-shadow:0 3px 12px #0003}
 #resumo-resultados[data-finalizado="true"]>div{border-color:var(--contorno)}
+
+.controles-cabecalho{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.configuracoes-demo{position:relative}
+.configuracoes-demo summary{list-style:none;cursor:pointer;border:1px solid var(--contorno);border-radius:7px;background:var(--cartao)}
+.configuracoes-demo summary::-webkit-details-marker{display:none}
+.configuracoes-demo summary:hover{background:var(--suave);border-color:var(--marca)}
+.configuracoes-demo:not([open]) .menu-demo{display:none}
+.menu-demo{position:absolute;top:calc(100% + 8px);right:0;z-index:7;width:340px;max-width:calc(100dvi - 48px);max-height:calc(100dvh - 110px);overflow-y:auto;padding:16px;border:1px solid var(--borda);border-radius:8px;background:var(--cartao);color:var(--texto);font-size:13px;box-shadow:0 8px 24px #0003}
+.menu-demo p{color:var(--muted);margin:4px 0 16px}
+.menu-demo label{margin:0 0 12px}.menu-demo select{display:block;width:100%;padding:6px;margin-top:6px}
+#demo-mensagem{display:block;margin-top:8px;color:var(--erro)}#demo-mensagem:empty{display:none}

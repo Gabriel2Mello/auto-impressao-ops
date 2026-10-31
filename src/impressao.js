@@ -9,6 +9,35 @@ let estadoAtual = null, preparando = true, resumoConferencia = null;
 const pagina = crypto.randomUUID();
 const presenca = new AbortController();
 let ultimoEstado = '', saindo = false, historico = [];
+let seguirResultados = true, topoResultados = 0, resultadoAtual = null;
+
+function atualizarSetaResultados() {
+  const lista = $('resultados'), ultimo = lista.lastElementChild;
+  let ultimoVisivel = false;
+  if (historico.length && ultimo) {
+    const area = lista.getBoundingClientRect(), item = ultimo.getBoundingClientRect();
+    ultimoVisivel = item.top >= Math.max(0, area.top) - 1
+      && item.bottom <= Math.min(window.innerHeight, area.bottom) + 1;
+  }
+  $('acompanhar-atual').hidden = seguirResultados || !resultadoAtual || ultimoVisivel;
+}
+function acompanharResultadoAtual() {
+  atualizarSetaResultados();
+  if (!seguirResultados || !resultadoAtual) return;
+  const lista = $('resultados'), area = lista.getBoundingClientRect(), item = resultadoAtual.getBoundingClientRect();
+  if (item.top < area.top) lista.scrollTop += item.top - area.top;
+  else if (item.bottom > area.bottom) lista.scrollTop += item.bottom - area.bottom;
+  topoResultados = lista.scrollTop;
+  atualizarSetaResultados();
+}
+$('resultados').addEventListener('scroll', () => {
+  if (Math.abs($('resultados').scrollTop - topoResultados) > 1) seguirResultados = false;
+  atualizarSetaResultados();
+});
+window.addEventListener('resize', atualizarSetaResultados);
+window.addEventListener('scroll', atualizarSetaResultados, true);
+if (window.ResizeObserver) new window.ResizeObserver(atualizarSetaResultados).observe($('resultados'));
+$('acompanhar-atual').onclick = () => { seguirResultados = true; acompanharResultadoAtual(); };
 
 function atualizarBotoes() {
   for (const id of ['demo-resultado', 'demo-exemplo']) {
@@ -53,7 +82,15 @@ function selecionarAba(aba) {
   mostrarAbas();
   document.querySelector('.rolagem-preparacao').scrollTop = 0;
 }
+function atualizarContagemOrdens() {
+  const numeros = $('ordens').value.split(/[\s,;]+/)
+    .filter(numero => /^[0-9]+$/.test(numero))
+    .map(numero => numero.replace(/^0+/, '').padStart(6, '0'));
+  const texto = 'Contagem: ' + new Set(numeros).size;
+  if ($('contagem-ordens').textContent !== texto) $('contagem-ordens').textContent = texto;
+}
 function invalidar() {
+  atualizarContagemOrdens();
   conferido = null;
   preparando = true; resumoConferencia = null;
   $('titulo-conferencia').textContent = 'Conferência';
@@ -100,6 +137,7 @@ function mostrarEstado(estado) {
   const assinatura = JSON.stringify(estado);
   if (assinatura === ultimoEstado) return;
   ultimoEstado = assinatura;
+  if (estado.ocupado && !ocupado) seguirResultados = true;
   estadoAtual = estado;
   if (estado.ocupado) preparando = false;
   ocupado = estado.ocupado; impressora = estado.impressora;
@@ -108,6 +146,7 @@ function mostrarEstado(estado) {
   $('impressora').textContent = impressora || 'Nenhuma impressora selecionada.';
   $('aviso-impressora').textContent = estado.aviso_impressora || '';
   atualizarBotoes();
+  acompanharResultadoAtual();
 }
 function mostrarAndamento() {
   if (!estadoAtual) return;
@@ -131,8 +170,9 @@ function mostrarResultados() {
   $('resumo-resultados').dataset.finalizado = String(!ocupado && ['concluido', 'interrompido', 'erro'].includes(estadoAtual.fase));
   const lista = $('resultados'), topo = lista.scrollTop;
   const contagem = {concluidas:0, pendentes:0, erros:0};
+  resultadoAtual = null;
   lista.replaceChildren();
-  for (const registro of historico) {
+  for (const [indice, registro] of historico.entries()) {
     const concluida = ['concluido', 'conferido_enviado'].includes(registro.situacao);
     const executando = ocupado && registro.situacao === 'envio_iniciado';
     const erro = !executando && ['envio_iniciado', 'incerto'].includes(registro.situacao);
@@ -141,17 +181,22 @@ function mostrarResultados() {
     const linha = document.createElement('article'); linha.className = 'resultado';
     const etiqueta = document.createElement('span'); etiqueta.className = `situacao ${tipo}`;
     etiqueta.textContent = concluida ? 'Concluída' : erro ? 'Erro' : executando ? 'Em andamento' : 'Pendente';
+    const posicao = document.createElement('span'); posicao.className = 'posicao-resultado';
+    posicao.textContent = `${indice + 1}/${historico.length}`;
+    posicao.setAttribute('aria-label', `Operação ${indice + 1} de ${historico.length}`);
     const descricao = document.createElement('p');
     const numero = document.createElement('strong'); numero.textContent = registro.numero;
     const detalhe = document.createElement('span');
-    detalhe.textContent = ` · setor ${registro.setor} · ${concluida ? 'Envio concluído.' : erro ? 'O processamento não foi concluído.' : executando ? 'Enviando ao Sisplan…' : 'Envio não iniciado.'}`;
-    descricao.append(numero, detalhe); linha.append(etiqueta, descricao); lista.append(linha);
+    detalhe.textContent = ` · setor ${registro.setor}${erro ? ' · O processamento não foi concluído.' : ''}`;
+    descricao.append(numero, detalhe); linha.append(etiqueta, descricao, posicao); lista.append(linha);
+    if (concluida || erro || executando) resultadoAtual = linha;
   }
   if (!historico.length) {
     const vazio = document.createElement('p'); vazio.className = 'dica'; vazio.textContent = 'Nenhuma execução iniciada.'; lista.append(vazio);
   }
   for (const [tipo, quantidade] of Object.entries(contagem)) $(`resultado-${tipo}`).textContent = quantidade;
   lista.scrollTop = topo;
+  topoResultados = lista.scrollTop;
 }
 async function carregarImpressoras() {
   if (pendente || ocupado || encerrado || !online) return;

@@ -236,6 +236,7 @@ precisam ser reconstruídos. Homologação física de impressão permanece separ
 Abra **Testar Interface Impressao OPs.cmd** ou execute
 `.\.venv-desktop\Scripts\python.exe impressao.py --demo`.
 A janela identifica **Demonstração** e pode ficar aberta junto da aplicação normal.
+As opções ficam no ícone de configurações ao lado do tema, no cabeçalho.
 Use **Preencher exemplo**, **Conferir OPs** e **Imprimir 5 OPs** para ver o progresso
 simulado. O seletor **Resultado simulado** permite também provocar uma falha e
 explorar o histórico de pendências. A parada e o seletor de impressora podem ser testados.

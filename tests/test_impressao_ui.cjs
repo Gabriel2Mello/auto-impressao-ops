@@ -14,7 +14,8 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
     append(...filhos) { this.children.push(...filhos); alteracoes++; }
     replaceChildren(...filhos) { this.children = filhos; this.value = ''; alteracoes++; }
     setAttribute() {}
-    addEventListener(nome,acao) { if(nome==='click'){const anterior=this.onclick;this.onclick=(...args)=>{anterior?.(...args);return acao(...args);};} }
+    addEventListener(nome,acao) { if(nome==='click'){const anterior=this.onclick;this.onclick=(...args)=>{anterior?.(...args);return acao(...args);};} else this['on'+nome]=acao; }
+    getBoundingClientRect() { return this.rect || {top:0,bottom:0}; }
     focus() {}
     showModal() { this.open = true; }
     close() { this.open = false; }
@@ -63,6 +64,31 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
   };
 }
 const avancar = () => new Promise(resolve => setImmediate(resolve));
+
+test('contador da lista acompanha edição, separadores, duplicatas normalizadas e limpeza', () => {
+  const ui = painel();
+  assert.equal(ui.obter('contagem-ordens').textContent, 'Contagem: 0');
+  for (const [valor, total] of [
+    ['123456\n123457\n123458\n123459\n123460', 5],
+    ['1 000001,0000001;2\t000002\r\n3 texto -4 1.5', 3],
+    ['0 000000 1234567 01234567 9007199254740992 9007199254740993', 4],
+    [' ,;\n\t', 0], ['', 0]
+  ]) {
+    ui.obter('ordens').value = valor;
+    ui.obter('campos').oninput();
+    assert.equal(ui.obter('contagem-ordens').textContent, `Contagem: ${total}`);
+    assert.equal(ui.obter('ordens').value, valor);
+  }
+  ui.eventos.pagehide();
+});
+
+test('preenchimento programático atualiza o contador ao invalidar a conferência', () => {
+  const ui = painel();
+  ui.obter('ordens').value = '123456\n123457\n123458\n123459\n123460';
+  vm.runInNewContext('invalidar()', ui.sandbox);
+  assert.equal(ui.obter('contagem-ordens').textContent, 'Contagem: 5');
+  ui.eventos.pagehide();
+});
 
 test('tema escuro padrão e preferências válidas são recuperados sem consultar o sistema', () => {
   for (const [salvo, esperado] of [[null, 'escuro'], ['invalido', 'escuro'], ['claro', 'claro'], ['escuro', 'escuro']]) {

@@ -3,6 +3,10 @@ const $ = id => document.getElementById(id);
 const token = document.querySelector('meta[name="impressao-token"]').content;
 const desktop = document.querySelector('meta[name="impressao-desktop"]')?.content === '1';
 let salvamentoTema = Promise.resolve(true);
+let salvamentoConsulta = Promise.resolve(true);
+function aguardarPreferencias() {
+  return Promise.all([salvamentoTema, salvamentoConsulta]).then(resultados => resultados.every(Boolean));
+}
 let modo = 'intervalos', conferido = null, ocupado = false, online = false, encerrado = false, pendente = false, impressora = '';
 let numeroIntervalo = 0, abaAtual = 'intervalos';
 let estadoAtual = null, preparando = true, resumoConferencia = null;
@@ -54,6 +58,12 @@ function atualizarBotoes() {
   mostrarAndamento();
   $('campos').disabled = ocupado || pendente || encerrado;
   $('conferir').disabled = ocupado || pendente || !online || encerrado;
+  $('consultar-sisplan').disabled = ocupado || pendente || !online || encerrado;
+  const automatico = Boolean($('consultar-sisplan').checked);
+  $('setor-lista').disabled = automatico;
+  for (const input of $('intervalos').querySelectorAll('input')) {
+    if (input.dataset.campo === 'setor') input.disabled = automatico;
+  }
   $('imprimir').disabled = !conferido || ocupado || pendente || !online || !impressora || encerrado;
   $('parar').hidden = !ocupado;
   $('selecionar-impressora').disabled = ocupado || pendente || !online || encerrado;
@@ -119,15 +129,18 @@ function adicionarIntervalo() {
   linha.append(remover); $('intervalos').append(linha); invalidar();
 }
 function entrada() {
-  if (modo === 'lista') return {modo, ordens: $('ordens').value, setor: $('setor-lista').value};
-  return {modo, intervalos: Array.from($('intervalos').children, linha => Object.fromEntries(
+  const consultar_sisplan = Boolean($('consultar-sisplan').checked);
+  if (modo === 'lista') return {modo, consultar_sisplan, ordens: $('ordens').value, setor: $('setor-lista').value};
+  return {modo, consultar_sisplan, intervalos: Array.from($('intervalos').children, linha => Object.fromEntries(
     Array.from(linha.querySelectorAll('input'), input => [input.dataset.campo, input.value])))};
 }
 async function api(caminho, dados) {
   const resposta = await fetch(caminho, {
     method: dados === undefined ? 'GET' : 'POST',
+    keepalive: caminho === '/api/preferencia-consulta',
     headers: {Authorization: `Bearer ${token}`, ...(dados === undefined ? {} : {'Content-Type': 'application/json'})},
-    body: dados === undefined ? undefined : JSON.stringify(dados), signal: AbortSignal.timeout(10000)
+    body: dados === undefined ? undefined : JSON.stringify(dados), signal: AbortSignal.timeout(
+      dados?.consultar_sisplan ? 30000 : 10000)
   });
   const retorno = await resposta.json();
   if (!resposta.ok) throw Error(retorno.erro || 'Não foi possível concluir a solicitação.');
@@ -268,19 +281,27 @@ async function acompanhar() {
 $('formulario').onsubmit = async evento => {
   evento.preventDefault(); if (pendente || ocupado || encerrado) return;
   pendente = true; atualizarBotoes(); $('mensagem').textContent = '';
+  if ($('consultar-sisplan').checked) $('mensagem').textContent = 'Consultando facção e setor no Sisplan…';
   try {
+    if (!await salvamentoConsulta) throw Error('Não foi possível salvar a opção Consultar no Sisplan. Selecione a opção novamente para tentar salvar.');
     const dados = entrada(), resultado = await api('/api/conferir', dados);
-    conferido = dados; preparando = true; resumoConferencia = resultado;
+    conferido = {...dados, conferencia_id: resultado.conferencia_id}; preparando = true; resumoConferencia = resultado;
+    $('mensagem').textContent = '';
     $('titulo-conferencia').textContent = 'Conferência';
+    $('coluna-faccao').hidden = !dados.consultar_sisplan;
+    $('tabela-conferencia').classList.toggle('com-faccao', dados.consultar_sisplan);
     $('lotes').replaceChildren();
     for (const lote of resultado.lotes) {
       const linha = document.createElement('tr');
-      for (const valor of [lote.setor, lote.ordens.length, lote.ordens.slice(0, 100).join(' · ') + (lote.ordens.length > 100 ? ` · … e mais ${lote.ordens.length - 100} OPs` : '')]) {
+      const local = (codigo, nome) => codigo + (nome ? ` · ${nome}` : '');
+      const valores = [local(lote.setor, lote.setor_nome), lote.ordens.length, lote.ordens.slice(0, 100).join(' · ') + (lote.ordens.length > 100 ? ` · … e mais ${lote.ordens.length - 100} OPs` : '')];
+      if (dados.consultar_sisplan) valores.unshift(local(lote.faccao, lote.faccao_nome));
+      for (const valor of valores) {
         const celula = document.createElement('td'); celula.textContent = valor; linha.append(celula);
       }
       $('lotes').append(linha);
     }
-    $('resumo').textContent = `${resultado.total} OPs · ${resultado.lotes.length} setor(es)`;
+    $('resumo').textContent = `${resultado.total} OPs · ${resultado.lotes.length} ${dados.consultar_sisplan ? 'grupo(s) de facção/setor' : 'setor(es)'}`;
     $('imprimir').textContent = `Imprimir ${resultado.total} OPs`;
 
     selecionarAba('conferencia');
@@ -303,7 +324,7 @@ $('encerrar').onclick = async () => {
   if (encerrado) return;
   if (!confirm('Deseja realmente encerrar o programa? A OP em andamento será concluída antes de parar.')) return;
   try {
-    if (desktop && !await salvamentoTema) return;
+    if (!await aguardarPreferencias()) return;
     await api('/api/encerrar', {}); encerrado = true; online = false; atualizarBotoes();
     presenca.abort();
     $('encerrar').disabled = true; $('parar').hidden = true;
@@ -331,6 +352,17 @@ window.addEventListener('pagehide', () => {
 });
 document.querySelectorAll('[data-aba]').forEach(botao => { botao.onclick = () => selecionarAba(botao.dataset.aba); });
 $('campos').addEventListener('input', invalidar);
+$('consultar-sisplan').onchange = () => {
+  const valor = $('consultar-sisplan').checked;
+  invalidar();
+  salvamentoConsulta = salvamentoConsulta.then(async () => {
+    try {
+      await api('/api/preferencia-consulta', {consultar_sisplan: valor});
+      return true;
+    } catch (erro) { $('mensagem').textContent = erro.message; return false; }
+  });
+  return salvamentoConsulta;
+};
 $('adicionar').onclick = adicionarIntervalo;
 const tema = window.NunesTema.iniciar({controle:$('tema'),chave:'nunes-impressao-tema',cookie:true});
 $('tema').addEventListener('click', () => { document.documentElement.dataset.temaAnimado = '1'; });

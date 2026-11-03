@@ -22,6 +22,9 @@ def setor_valido(dados):
 def montar_lotes(dados):
     if not isinstance(dados, dict):
         raise ValueError('Entrada inválida.')
+    consultar = dados.get('consultar_sisplan', False)
+    if not isinstance(consultar, bool):
+        raise ValueError('Opção de consulta ao Sisplan inválida.')
     modo = texto(dados, 'modo')
     lotes = []
     if modo == 'intervalos':
@@ -37,7 +40,7 @@ def montar_lotes(dados):
                 raise ValueError('A OP inicial deve ser menor ou igual à final.')
             if int(fim) - int(inicio) + 1 > MAX_ORDENS:
                 raise ValueError(f'O limite por execução é de {MAX_ORDENS} OPs.')
-            lotes.append({'setor': setor_valido(intervalo), 'ordens': [
+            lotes.append({'setor': '10' if consultar else setor_valido(intervalo), 'ordens': [
                 normalizar_ordem(numero) for numero in range(int(inicio), int(fim) + 1)
             ]})
     elif modo == 'lista':
@@ -49,7 +52,7 @@ def montar_lotes(dados):
             raise ValueError('Informe pelo menos uma OP.')
         if len(valores) > MAX_ORDENS:
             raise ValueError(f'O limite por execução é de {MAX_ORDENS} OPs.')
-        lotes.append({'setor': setor_valido(dados), 'ordens': [
+        lotes.append({'setor': '10' if consultar else setor_valido(dados), 'ordens': [
             normalizar_ordem(valor) for valor in valores
         ]})
     else:

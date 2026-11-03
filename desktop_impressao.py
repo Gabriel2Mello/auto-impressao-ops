@@ -121,12 +121,12 @@ class Janela:
             terminou.set()
 
         try:
-            janela.evaluate_js('salvamentoTema', callback=salvo)
+            janela.evaluate_js('aguardarPreferencias()', callback=salvo)
             while not terminou.wait(.1):
                 if self.fechada.is_set():
                     raise RuntimeError('A janela fechou antes de confirmar as preferências.')
             if respostas != [True]:
-                janela.set_title(self.nome + ' · Confira a falha ao salvar o tema')
+                janela.set_title(self.nome + ' · Confira a falha ao salvar as preferências')
                 return
             self.servidor.encerrar(confirmado=True)
         except Exception:

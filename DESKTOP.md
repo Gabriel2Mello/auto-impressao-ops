@@ -50,7 +50,9 @@ X e Encerrar pedem confirmação. A OP em andamento e a gravação do diário te
 antes de a janela desaparecer; a sincronização auxiliar termina depois, no processo,
 mantendo a exclusividade até a saída. Parada pelo Hub respeita a mesma fronteira.
 Não confundir janela fechada com processo terminado. Uma falha ao salvar o tema
-pela interface impede a saída por X/Encerrar até uma gravação bem-sucedida.
+ou a escolha de Consultar no Sisplan impede a saída por X/Encerrar até uma
+gravação bem-sucedida. A escolha da consulta é compartilhada com o painel no
+navegador, em `conferencia.json`, e restaurada nas próximas aberturas.
 
 Tema e geometria ficam separados da seleção de impressora, em
 `%LOCALAPPDATA%\Nunes\ImpressaoOPs\desktop-tema.json` e `desktop-janela.json`.

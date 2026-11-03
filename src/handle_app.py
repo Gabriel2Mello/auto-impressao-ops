@@ -62,13 +62,15 @@ def mapear_campos(tab_envio):
     }
 
 
-def preencher_dados_fixos(campos, setor):
+def preencher_dados_fixos(campos, setor, faccao=None):
     dados = {
         'setor': f'{setor}',
         'movimentacao': '',
         'lancamento': 0,
         'saida': '  /  /    ',
     }
+    if faccao is not None:
+        dados['faccao'] = faccao
 
     for nome, valor in dados.items():
         campos[nome].set_text(valor)
@@ -103,6 +105,8 @@ def inicia_app():
         )
 
         campos = mapear_campos(tab_envio)
+        # Usado somente na consulta automática, preservando o fluxo manual.
+        campos['faccao'] = get_field_index(tab_envio, 'TEdit', 'faccao')
 
         return app, campos
 

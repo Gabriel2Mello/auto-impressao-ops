@@ -32,7 +32,13 @@ class EstadoDemonstracao(EstadoImpressao):
         impressoras = Impressoras(Path(pasta) / 'impressora.json', listar=lambda: filas)
         impressoras.selecionar(filas[0])
         super().__init__(executor=self.simular, impressoras=impressoras,
+                         consultar=self.consultar_demo,
                          diario=DiarioDemonstracao(Path(pasta) / 'diario.sqlite3'))
+
+    @staticmethod
+    def consultar_demo(lotes):
+        return [dict(lote, faccao='00001', faccao_nome='Facção fictícia · Demonstração',
+                     setor_nome='Setor fictício') for lote in lotes]
 
     def configurar_demo(self, dados):
         with self.trava:

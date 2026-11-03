@@ -10,6 +10,23 @@ from src.servico_impressao import executar_lotes
 
 @unittest.skipUnless(importlib.util.find_spec('pywinauto'), 'Requer dependências Windows instaladas')
 class TestAdaptadorWindows(unittest.TestCase):
+    def test_consulta_automatica_preenche_faccao_e_setor_do_lote(self):
+        from src.handle_app import preencher_dados_fixos
+        campos = {nome: Mock() for nome in ('faccao', 'setor', 'movimentacao', 'lancamento', 'saida')}
+        preencher_dados_fixos(campos, '20', faccao='00002')
+        campos['faccao'].set_text.assert_called_once_with('00002')
+        campos['setor'].set_text.assert_called_once_with('20')
+        campos['faccao'].reset_mock()
+        preencher_dados_fixos(campos, '10')
+        campos['faccao'].set_text.assert_not_called()
+
+        with patch('src.handle_app.inicia_app', return_value=('app', 'campos')), \
+             patch('src.handle_app.preencher_dados_fixos') as preencher, \
+             patch('main.processar_ordem') as processar:
+            executar_lotes([dict(faccao='00002', setor='20', ordens=['000001'])], Event(), Mock())
+        preencher.assert_called_once_with('campos', '20', faccao='00002')
+        processar.assert_called_once()
+
     def test_dialogo_usa_impressora_do_lote_e_confere_nome_antes_de_confirmar(self):
         from src.handle_app import handle_menu_impressao
         app, combo = Mock(), Mock()

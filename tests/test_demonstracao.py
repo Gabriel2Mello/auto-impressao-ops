@@ -12,6 +12,14 @@ from src.interface_web import criar_servidor
 
 
 class TestDemonstracao(unittest.TestCase):
+    def test_preferencia_consulta_da_demo_fica_isolada(self):
+        with TemporaryDirectory() as primeira, TemporaryDirectory() as segunda:
+            estado = EstadoDemonstracao(primeira, atraso=0)
+            estado.selecionar_consulta(True)
+            self.assertTrue(EstadoDemonstracao(primeira, atraso=0).preferencia_consulta())
+            self.assertFalse(EstadoDemonstracao(segunda, atraso=0).preferencia_consulta())
+            self.assertEqual(estado.arquivo_consulta.parent, Path(primeira))
+
     def test_execucao_e_falha_usam_somente_dados_ficticios(self):
         with TemporaryDirectory() as pasta, \
                 patch('src.impressoras.listar_impressoras_windows', side_effect=AssertionError('Fila real')), \

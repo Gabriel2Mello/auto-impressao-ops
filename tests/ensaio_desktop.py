@@ -1,5 +1,6 @@
 """Ensaio WebView2 isolado: sem filas reais, Sisplan, impressão ou métricas reais."""
 import argparse
+import base64
 import json
 import os
 from pathlib import Path
@@ -34,6 +35,8 @@ def main():
                 raise AssertionError('O ensaio visual não pode executar impressão.')
 
             estado = EstadoImpressao(executor=proibido, impressoras=impressoras,
+                                     consultar=lambda lotes: [dict(lote, faccao='00001',
+                                         faccao_nome='Facção fictícia', setor_nome='Costura fictícia') for lote in lotes],
                                      diario=DiarioImpressao(raiz / 'diario.sqlite3'))
             servidor, _ = criar_servidor(estado, porta=0, modo_desktop=True)
 
@@ -112,7 +115,11 @@ def main():
                                                 fundo:getComputedStyle(document.querySelector('.preparacao')).backgroundColor};
                                             })()""")
                                             if forma == 'lista':
-                                                assert janela.evaluate_js("(() => {const s=document.getElementById('setor-lista').getBoundingClientRect(),b=document.getElementById('conferir').getBoundingClientRect();return Math.abs(s.bottom-b.bottom)<1 && Math.abs(s.top-b.top)<1})()"), 'Conferir OPs não alinha com o setor'
+                                                assert janela.evaluate_js("(() => {const s=document.getElementById('setor-lista').getBoundingClientRect(),b=document.getElementById('conferir').getBoundingClientRect();return Math.abs(s.bottom-b.bottom)<1})()"), 'Conferir OPs não alinha com a base do setor'
+                                                tamanho_lista = janela.evaluate_js("(() => {const r=document.getElementById('conferir').getBoundingClientRect();return {altura:r.height,largura:r.width}})()")
+                                            else:
+                                                tamanho_intervalos = janela.evaluate_js("(() => {const r=document.getElementById('conferir').getBoundingClientRect();return {altura:r.height,largura:r.width}})()")
+                                                assert all(abs(tamanho_lista[chave] - tamanho_intervalos[chave]) < 1 for chave in ('altura', 'largura')), (tamanho_lista, tamanho_intervalos)
                                             assert not layout['excesso'], layout
                                             assert layout['fundo'] == 'rgba(0, 0, 0, 0)', layout
                                             assert layout['impressoraFim'] <= layout['entradaTopo'], layout
@@ -207,6 +214,50 @@ def main():
                             janela.evaluate_js("document.querySelector('[data-aba=lista]').click()")
                             assert janela.evaluate_js("!document.getElementById('modo-lista').hidden && conferido !== null"), 'Voltar à entrada perdeu o lote'
                             assert estado.worker is None, 'Conferência iniciou executor'
+                            # Consulta automática usa somente o adaptador sintético acima.
+                            janela.evaluate_js("document.getElementById('consultar-sisplan').click();document.getElementById('conferir').click()")
+                            for _ in range(50):
+                                if janela.evaluate_js('conferido !== null'):
+                                    break
+                                time.sleep(.1)
+                            assert janela.evaluate_js("conferido?.consultar_sisplan && conferido.conferencia_id && !document.getElementById('coluna-faccao').hidden && document.getElementById('lotes').textContent.includes('Facção fictícia')"), 'Consulta automática não exibiu facção/setor'
+                            assert estado.worker is None, 'Consulta automática iniciou executor'
+                            for largura in [1180, 760, 360]:
+                                janela.restore()
+                                janela.resize(largura, 820)
+                                time.sleep(.2)
+                                for zoom in ([1] if largura == 360 else [1, 2]):
+                                    janela.native.Invoke(Action(lambda: setattr(janela.native.webview, 'ZoomFactor', zoom)))
+                                    time.sleep(.2)
+                                    assert janela.evaluate_js("document.documentElement.scrollWidth <= document.documentElement.clientWidth"), 'Consulta automática gerou rolagem horizontal'
+                                    if largura == 1180 and zoom == 1:
+                                        captura = []
+                                        janela.native.Invoke(Action(lambda: captura.append(janela.native.webview.CoreWebView2.CallDevToolsProtocolMethodAsync('Page.captureScreenshot', '{}'))))
+                                        dados_imagem = json.loads(captura[0].GetAwaiter().GetResult())
+                                        args.resultado.parent.mkdir(parents=True, exist_ok=True)
+                                        (args.resultado.parent / 'conferencia-sisplan.png').write_bytes(base64.b64decode(dados_imagem['data']))
+                                    evidencias.append(dict(consulta_sisplan=True, largura=largura, zoom=zoom))
+                            janela.native.Invoke(Action(lambda: setattr(janela.native.webview, 'ZoomFactor', 1.0)))
+                            janela.resize(1180, 820)
+                            # Nova página restaura a escolha do arquivo local, sem depender da porta ou do storage.
+                            for selecionado in (True, False):
+                                for _ in range(50):
+                                    if (raiz / 'conferencia.json').exists() and json.loads((raiz / 'conferencia.json').read_text(encoding='utf-8'))['consultar_sisplan'] is selecionado:
+                                        break
+                                    time.sleep(.1)
+                                assert json.loads((raiz / 'conferencia.json').read_text(encoding='utf-8'))['consultar_sisplan'] is selecionado, 'Escolha não persistida'
+                                janela.evaluate_js('online=false;location.reload()')
+                                time.sleep(.3)
+                                for _ in range(50):
+                                    if janela.evaluate_js("typeof online !== 'undefined' && online"):
+                                        break
+                                    time.sleep(.1)
+                                restaurado = janela.evaluate_js("({online,selecionado:document.getElementById('consultar-sisplan').checked})")
+                                assert restaurado == dict(online=True, selecionado=selecionado), restaurado
+                                if selecionado:
+                                    janela.evaluate_js("document.getElementById('consultar-sisplan').click()")
+                            janela.evaluate_js("document.querySelector('[data-aba=lista]').click()")
+                            assert janela.evaluate_js("conferido === null && !document.getElementById('setor-lista').disabled"), 'Desmarcar não restaurou o modo manual'
                             janela.evaluate_js("document.getElementById('ordens').value='123458';document.getElementById('ordens').dispatchEvent(new Event('input',{bubbles:true}))")
                             assert janela.evaluate_js('conferido === null && document.getElementById("imprimir").disabled'), 'Edição não invalidou conferência'
                             # Persistência pelo servidor real, inclusive com o WebView em modo privado.

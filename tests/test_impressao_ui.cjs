@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const caminho = require('node:path');
 
-function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=false, desktop=false, temaBackend='escuro'}={}) {
+function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=false, desktop=false, temaBackend='escuro', consultarSalvo=false}={}) {
   let alteracoes = 0, leitura, recusarLeitura;
   const requisicoes = [], eventos = {}, respostasConfirmacao = [], respostas = new Map();
   class Elemento {
@@ -55,6 +55,7 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
     }
   };
   obter('tema').tagName='BUTTON';
+  obter('consultar-sisplan').checked = consultarSalvo;
   vm.runInNewContext(fs.readFileSync(caminho.join(__dirname, '../src/nunes-tema.js'), 'utf8'), sandbox);
   vm.runInNewContext(fs.readFileSync(caminho.join(__dirname, '../src/impressao.js'), 'utf8'), sandbox);
   return {
@@ -64,6 +65,100 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
   };
 }
 const avancar = () => new Promise(resolve => setImmediate(resolve));
+
+test('preferência do Sisplan é restaurada do servidor e salva ao marcar e desmarcar', async () => {
+  for (const desktop of [false, true]) {
+    const ui = painel({desktop, consultarSalvo:true}); await avancar();
+    assert.equal(ui.obter('consultar-sisplan').checked, true);
+    assert.equal(ui.obter('setor-lista').disabled, true);
+    assert.equal(ui.requisicoes.some(item=>item.url==='/api/preferencia-consulta'), false);
+    for (const valor of [false, true]) {
+      ui.obter('consultar-sisplan').checked = valor;
+      await ui.obter('consultar-sisplan').onchange();
+      const pedido = ui.requisicoes.filter(item=>item.url==='/api/preferencia-consulta').at(-1);
+      assert.equal(JSON.parse(pedido.opcoes.body).consultar_sisplan, valor);
+      assert.equal(pedido.opcoes.keepalive, true);
+      assert.equal(ui.obter('setor-lista').disabled, valor);
+    }
+    ui.eventos.pagehide();
+  }
+});
+
+test('Encerrar aguarda a preferência pendente e falha de gravação é informada', async () => {
+  const ui = painel({desktop:true}); await avancar();
+  let concluir;
+  ui.respostas.set('/api/preferencia-consulta', {ok:true, json:()=>new Promise(resolve=>{concluir=resolve;})});
+  ui.obter('consultar-sisplan').checked = true;
+  const salvando = ui.obter('consultar-sisplan').onchange();
+  await avancar();
+  ui.respostasConfirmacao.push(true);
+  const encerrando = ui.obter('encerrar').onclick();
+  await avancar();
+  assert.equal(ui.requisicoes.some(item=>item.url==='/api/encerrar'), false);
+  concluir({}); await salvando; await encerrando;
+  assert.equal(ui.requisicoes.some(item=>item.url==='/api/encerrar'), true);
+  ui.eventos.pagehide();
+
+  const falha = painel(); await avancar();
+  falha.respostas.set('/api/preferencia-consulta', {ok:false,json:async()=>({erro:'Não foi possível salvar a opção.'})});
+  falha.obter('consultar-sisplan').checked = true;
+  await falha.obter('consultar-sisplan').onchange();
+  assert.equal(falha.obter('mensagem').textContent, 'Não foi possível salvar a opção.');
+  falha.eventos.pagehide();
+});
+
+test('consulta opcional envia escolha, exibe facção/setor e vincula a impressão à conferência', async () => {
+  const ui = painel(); await avancar();
+  ui.enviar(`data: ${JSON.stringify(ui.estado)}\n\n`); await avancar();
+  vm.runInNewContext("selecionarAba('lista')", ui.sandbox);
+  ui.obter('ordens').value = '1';
+  ui.obter('setor-lista').value = '10';
+  ui.obter('consultar-sisplan').checked = true;
+  ui.obter('consultar-sisplan').onchange();
+  assert.equal(ui.obter('setor-lista').disabled, true);
+  const conferido = {lotes: [{faccao:'00002', faccao_nome:'Facção fictícia', setor:'20', setor_nome:'Costura', ordens:['000001']}], total:1, conferencia_id:'conferencia-sintetica'};
+  ui.respostas.set('/api/conferir', {ok:true, json:async()=>conferido});
+  await ui.obter('formulario').onsubmit({preventDefault(){}});
+  const consulta = JSON.parse(ui.requisicoes.find(item=>item.url==='/api/conferir').opcoes.body);
+  assert.equal(consulta.consultar_sisplan, true);
+  assert.equal(ui.obter('coluna-faccao').hidden, false);
+  assert.equal(ui.obter('lotes').children[0].children[0].textContent, '00002 · Facção fictícia');
+  assert.equal(ui.obter('lotes').children[0].children[1].textContent, '20 · Costura');
+  await ui.obter('imprimir').onclick();
+  const envio = JSON.parse(ui.requisicoes.find(item=>item.url==='/api/iniciar').opcoes.body);
+  assert.equal(envio.consultar_sisplan, true);
+  assert.equal(envio.conferencia_id, 'conferencia-sintetica');
+  assert.equal(ui.obter('consultar-sisplan').disabled, false);
+  ui.obter('consultar-sisplan').checked = false;
+  ui.obter('consultar-sisplan').onchange();
+  assert.equal(ui.obter('setor-lista').disabled, false);
+  assert.equal(ui.obter('setor-lista').value, '10');
+  assert.equal(ui.obter('imprimir').disabled, true);
+  ui.eventos.pagehide();
+});
+
+test('desmarcada mantém conferência manual; trocar a opção invalida e falha não libera impressão', async () => {
+  const ui = painel(); await avancar();
+  ui.enviar(`data: ${JSON.stringify(ui.estado)}\n\n`); await avancar();
+  vm.runInNewContext("selecionarAba('lista')", ui.sandbox);
+  ui.obter('ordens').value = '1';
+  ui.obter('setor-lista').value = '30';
+  await ui.obter('formulario').onsubmit({preventDefault(){}});
+  const consulta = JSON.parse(ui.requisicoes.find(item=>item.url==='/api/conferir').opcoes.body);
+  assert.equal(consulta.consultar_sisplan, false);
+  assert.equal(consulta.setor, '30');
+  assert.equal(ui.obter('coluna-faccao').hidden, true);
+  assert.equal(ui.obter('imprimir').disabled, false);
+  ui.obter('consultar-sisplan').checked = true;
+  ui.obter('consultar-sisplan').onchange();
+  assert.equal(ui.obter('imprimir').disabled, true);
+  ui.respostas.set('/api/conferir', {ok:false, json:async()=>({erro:'OP sem localização atual'})});
+  await ui.obter('formulario').onsubmit({preventDefault(){}});
+  assert.equal(ui.obter('mensagem').textContent, 'OP sem localização atual');
+  assert.equal(ui.obter('imprimir').disabled, true);
+  assert.equal(ui.obter('consultar-sisplan').disabled, false);
+  ui.eventos.pagehide();
+});
 
 test('contador da lista acompanha edição, separadores, duplicatas normalizadas e limpeza', () => {
   const ui = painel();

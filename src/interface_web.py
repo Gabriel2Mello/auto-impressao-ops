@@ -10,7 +10,6 @@ from threading import Event, RLock, Thread
 from time import monotonic
 from urllib.parse import urlsplit
 
-from src.entrada_web import montar_lotes
 from src.servico_impressao import ConflitoExecucao, EstadoImpressao
 from src.utils import RECURSOS
 
@@ -188,6 +187,7 @@ def criar_servidor(estado=None, porta=8766, medidor_abertura=None, modo_desktop=
                         controles = CONTROLES
                     conteudo = conteudo.replace(b'__CONTROLES_DEMO__', controles.encode('utf-8'))
                     conteudo = conteudo.replace(b'__DESKTOP__', b'1' if servidor.modo_desktop else b'0')
+                    conteudo = conteudo.replace(b'__CONSULTAR_SISPLAN__', b'checked' if estado.preferencia_consulta() else b'')
                     from desktop_preferencias import ler_tema
                     conteudo = conteudo.replace(b'__TEMA__', (ler_tema() if servidor.modo_desktop else 'escuro').encode('ascii'))
                 self.responder(200, conteudo, tipo)
@@ -229,8 +229,7 @@ def criar_servidor(estado=None, porta=8766, medidor_abertura=None, modo_desktop=
                     raise ValueError('Solicitação inválida.')
                 caminho = urlsplit(self.path).path
                 if caminho == '/api/conferir':
-                    lotes = montar_lotes(dados)
-                    self.responder(200, {'lotes': lotes, 'total': sum(len(lote['ordens']) for lote in lotes)})
+                    self.responder(200, estado.conferir(dados))
                     return
                 if caminho == '/api/iniciar':
                     estado.iniciar(dados)
@@ -238,6 +237,8 @@ def criar_servidor(estado=None, porta=8766, medidor_abertura=None, modo_desktop=
                     estado.conferir_impressao(dados)
                 elif caminho == '/api/impressora':
                     estado.selecionar_impressora(dados.get('impressora'))
+                elif caminho == '/api/preferencia-consulta':
+                    estado.selecionar_consulta(dados.get('consultar_sisplan'))
                 elif caminho == '/api/demonstracao' and getattr(servidor, 'demonstracao', False):
                     estado.configurar_demo(dados)
                 elif caminho == '/api/parar':

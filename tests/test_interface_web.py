@@ -207,6 +207,43 @@ class TestHttp(ComImpressoras):
         self.assertEqual(json.loads(conteudo)['total'], 3)
         self.assertIsNone(self.estado.worker)
 
+    def test_preferencia_consulta_exige_autorizacao_e_restaura_marcacao_na_pagina(self):
+        for valor in (True, False):
+            dados = {'consultar_sisplan': valor}
+            for cabecalhos in ({}, dict(self.autorizacao(), Origin='https://externo.invalid'),
+                               dict(self.autorizacao(), Host='externo.invalid')):
+                resposta, _ = self.requisicao('POST', '/api/preferencia-consulta', dados, cabecalhos)
+                self.assertEqual(resposta.status, 403)
+            resposta, _ = self.requisicao('POST', '/api/preferencia-consulta', dados, self.autorizacao())
+            self.assertEqual(resposta.status, 200)
+            _, pagina = self.requisicao('GET', '/')
+            self.assertEqual(b'type="checkbox" checked' in pagina, valor)
+            self.assertNotIn(b'__CONSULTAR_SISPLAN__', pagina)
+            self.assertIsNone(self.estado.worker)
+        resposta, _ = self.requisicao('POST', '/api/preferencia-consulta',
+                                      {'consultar_sisplan': 'true'}, self.autorizacao())
+        self.assertEqual(resposta.status, 400)
+
+    def test_consulta_sisplan_protegida_exibe_localizacao_e_nao_imprime(self):
+        dados = dict(TestExecucao.entrada, consultar_sisplan=True)
+        lotes = [dict(faccao='00001', faccao_nome='Facção fictícia', setor='20',
+                      setor_nome='Costura', ordens=['000001', '000002', '000003'])]
+        with patch.object(self.estado, 'consultar', return_value=lotes) as consultar:
+            resposta, _ = self.requisicao('POST', '/api/conferir', dados)
+            self.assertEqual(resposta.status, 403)
+            consultar.assert_not_called()
+            resposta, conteudo = self.requisicao('POST', '/api/conferir', dados, self.autorizacao())
+            self.assertEqual(resposta.status, 200)
+            resultado = json.loads(conteudo)
+            self.assertEqual(resultado['lotes'], lotes)
+            self.assertTrue(resultado['conferencia_id'])
+            self.assertIsNone(self.estado.worker)
+        with patch.object(self.estado, 'consultar', side_effect=RuntimeError('Consulta indisponível')):
+            resposta, conteudo = self.requisicao('POST', '/api/conferir', dados, self.autorizacao())
+            self.assertEqual(resposta.status, 400)
+            self.assertIn('indisponível', json.loads(conteudo)['erro'])
+            self.assertIsNone(self.estado.conferencia_sisplan)
+
     def test_bloqueia_token_origem_host_e_caminho_arbitrario(self):
         for cabecalhos in [{}, dict(self.autorizacao(), Origin='https://site-externo.invalid'),
                            dict(self.autorizacao(), Host='externo.invalid')]:

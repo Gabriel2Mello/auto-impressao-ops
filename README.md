@@ -52,6 +52,39 @@ Reabra a aplicação para carregar a mudança. Resultados e limites estão em
 
 A confirmação de saída usa o aviso padrão do navegador, também exibido ao recarregar ou navegar para outra página. O navegador controla o texto e só permite esse aviso depois de uma interação do usuário com a página. Fechamentos forçados do navegador não garantem exibição da confirmação; a desconexão do canal ainda permite ao servidor detectar a saída.
 
+Ao lado de **Conferir OPs**, a opção **Consultar no Sisplan**
+começa desmarcada na primeira abertura e lembra a última escolha nas seguintes,
+inclusive ao alternar entre desktop e navegador. A escolha é salva ao marcar ou
+desmarcar, antes de qualquer conferência ou impressão, em
+`%LOCALAPPDATA%\Nunes\ImpressaoOPs\conferencia.json`, separada da impressora.
+A demonstração mantém essa preferência somente na sua pasta temporária.
+Marcada, desabilita os setores manuais e consulta o banco
+somente para leitura, tanto por intervalo quanto por lista. A conferência
+mostra os códigos e nomes da facção e do setor e agrupa as OPs pela localização
+encontrada. A impressão preenche esses dois filtros no Sisplan. Desmarcada,
+preserva o fluxo anterior, sem consulta ao banco e com setor padrão 10.
+
+A localização atual considera as linhas de `sisplan.faccao_001` com saldo
+positivo por cor/tamanho: `qt_orig - quant - quant_2 - quant_i - quant_f`,
+tratando valores nulos como zero. Consulta todas as partes da OP. Etapas
+baixadas são desconsideradas; repetições na mesma facção/setor não duplicam
+impressão. OP ausente, sem saldo, com cadastro inválido ou em mais de uma
+facção/setor bloqueia a conferência, com identificação da OP. Nenhuma localização
+é escolhida arbitrariamente. Antes de iniciar o lote, uma nova leitura compara
+as localizações com a conferência aprovada; mudança ou indisponibilidade exige
+nova conferência. Movimentações posteriores a essa leitura ainda podem ocorrer
+no ERP; a consulta não trava a produção no Sisplan.
+
+O acesso utiliza o perfil `principal` da configuração privada descrita em
+[acesso ao banco](../estrutura-nunes/area-nunes/banco-sisplan.md), sem copiar
+credenciais. `NUNES_BANCO_CONFIG` permite indicar outro caminho local para o
+JSON e `NUNES_BANCO_PERFIL` seleciona o perfil. A aplicação importa seu próprio
+adaptador e driver, sem importar código de outros projetos. Em outra máquina
+ou no pacote desktop, configure esse caminho explicitamente. Instale as
+dependências atualizadas no ambiente usado e reabra a aplicação; executáveis
+anteriores precisam ser reconstruídos. A demonstração simula também a consulta,
+sem acessar o banco real.
+
 O acompanhamento usa uma conexão contínua que envia o estado apenas quando há mudanças. Quando o painel está parado, não há consultas periódicas de estado nem redesenho da tela. Mensagens internas mantêm a conexão aberta para detectar o fechamento da aba, sem alterar a interface.
 
 As OPs recebem no mínimo seis dígitos. Repetições da mesma OP no mesmo setor são eliminadas na execução; uma mesma OP em setores diferentes permanece. Limite: 5.000 OPs por execução e 100 intervalos. A conferência exibe até 100 números de cada lote e informa quantos não estão visíveis; o lote completo é processado. Resultados apresenta todas as OPs do último lote, com contadores de concluídas, pendentes e erros. O diário persistente da E9 guarda o lote completo e as incertezas, sem retomada automática. O histórico acumulado de métricas fica separado, conforme a seção Estatísticas no Hub Nunes.
@@ -72,7 +105,7 @@ O ícone coração com N conserva a cor `#475569`. A assinatura **g2mello · Ess
 inclui os dois traços sob os `l` e o link de autoria. Os recursos ficam neste
 projeto; sua execução não depende do caminho do hub.
 
-O servidor usa a biblioteca padrão Python, sem framework web ou build de frontend. Apenas a execução real importa `pywinauto`. Os comandos da API exigem token da sessão, origem local e Host correspondente; a conferência não acessa o Sisplan nem a impressora.
+O servidor usa a biblioteca padrão Python, sem framework web ou build de frontend. Apenas a execução real importa `pywinauto`. Os comandos da API exigem token da sessão, origem local e Host correspondente; a conferência só consulta o banco quando a opção Sisplan está marcada e nunca imprime nem controla as telas do ERP.
 
 ## Verificação
 

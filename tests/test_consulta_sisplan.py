@@ -63,6 +63,30 @@ class TestConsulta(unittest.TestCase):
         self.inserir(numero='000002')
         self.assertEqual(self.consultar()[0]['ordens'], ['000001', '000002'])
 
+    def test_ignora_etiquetas_na_mesma_faccao_ou_em_outra(self):
+        self.inserir(numero='037442', faccao='00261', setor='10')
+        self.inserir(numero='037442', faccao='00261', setor='11')
+        self.inserir(numero='037442', faccao='00002', setor='11')
+        self.inserir(numero='037442', faccao=None, setor=' 11 ')
+        self.assertEqual(self.consultar([dict(setor='10', ordens=['037442'])]),
+                         [dict(faccao='00261', faccao_nome='', setor='10',
+                               setor_nome='', ordens=['037442'])])
+
+    def test_somente_etiquetas_nao_define_localizacao(self):
+        self.inserir(setor='11')
+        with self.assertRaisesRegex(ErroConsultaSisplan, 'OP 000001: não encontrada'):
+            self.consultar([dict(setor='10', ordens=['000001'])])
+
+    def test_etiquetas_nao_ocultam_ambiguidade_entre_localizacoes_produtivas(self):
+        self.inserir(setor='10')
+        self.inserir(setor='20')
+        self.inserir(setor='11')
+        with self.assertRaisesRegex(ErroConsultaSisplan, 'mais de uma localização') as erro:
+            self.consultar([dict(setor='10', ordens=['000001'])])
+        self.assertIn('setor 10', str(erro.exception))
+        self.assertIn('setor 20', str(erro.exception))
+        self.assertNotIn('setor 11', str(erro.exception))
+
     def test_ausente_sem_saldo_e_localizacao_ambigua_bloqueiam(self):
         for configurar, mensagem in [
             (lambda: None, 'não encontrada'),

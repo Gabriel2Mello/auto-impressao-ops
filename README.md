@@ -66,8 +66,10 @@ preserva o fluxo anterior, sem consulta ao banco e com setor padrão 10.
 
 A localização atual considera as linhas de `sisplan.faccao_001` com saldo
 positivo por cor/tamanho: `qt_orig - quant - quant_2 - quant_i - quant_f`,
-tratando valores nulos como zero. Consulta todas as partes da OP. Etapas
-baixadas são desconsideradas; repetições na mesma facção/setor não duplicam
+tratando valores nulos como zero. Consulta todas as partes da OP. O setor **11**
+(etiquetas) é ignorado na identificação da localização atual, mesmo com saldo
+em aberto; uma OP somente nesse setor não tem localização válida para a consulta.
+Etapas baixadas são desconsideradas; repetições na mesma facção/setor não duplicam
 impressão. OP ausente, sem saldo, com cadastro inválido ou em mais de uma
 facção/setor bloqueia a conferência, com identificação da OP. Nenhuma localização
 é escolhida arbitrariamente. Antes de iniciar o lote, uma nova leitura compara

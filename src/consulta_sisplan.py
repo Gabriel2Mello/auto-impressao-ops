@@ -76,6 +76,9 @@ def consultar_localizacoes(lotes, conectar=conectar_configurado):
         numero = str(numero).strip()
         faccao = str(faccao).strip() if faccao is not None else ''
         setor = str(setor).strip() if setor is not None else ''
+        # Etiquetas acompanham a OP, mas não representam sua localização produtiva.
+        if setor == '11':
+            continue
         if (numero not in por_numero or not faccao.isascii() or not faccao.isdigit()
                 or len(faccao) > 6 or not setor.isascii() or not setor.isdigit() or len(setor) > 6):
             raise ErroConsultaSisplan(f'OP {numero}: facção ou setor inválido no Sisplan. Confira o cadastro.')

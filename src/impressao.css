@@ -87,8 +87,12 @@ dialog{width:min(520px,calc(100% - 32px));max-height:calc(100dvh - 32px);overflo
 .opcao-sisplan input{flex:0 0 18px;width:18px;height:18px;min-height:18px;padding:0;accent-color:var(--marca)}
 .rodape-lista .conferir-lote{gap:12px;flex:0 1 auto}
 input:disabled{opacity:.6}
-th:nth-last-child(3){width:52px}th:nth-last-child(2){width:86px}
-.com-faccao th:first-child{width:25%}.com-faccao th:nth-child(2){width:20%}.com-faccao th:nth-child(3){width:15%}
+#coluna-selecao{width:36px}
+#coluna-faccao{width:25%}
+th:nth-last-child(3){width:64px}th:nth-last-child(2){width:44px}
+.com-faccao th:nth-last-child(3){width:24%}
+#lotes input[type=checkbox]{display:block;width:18px;height:18px;min-height:0;margin:0;padding:0;accent-color:var(--marca)}
+#lotes input[type=checkbox]:focus-visible{outline:2px solid var(--marca);outline-offset:2px;box-shadow:none}
 
 .resultado{position:relative;padding-right:76px}
 .resultado:last-child{border-bottom:0}

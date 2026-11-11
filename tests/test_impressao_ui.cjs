@@ -122,8 +122,13 @@ test('consulta opcional envia escolha, exibe facção/setor e vincula a impress�
   const consulta = JSON.parse(ui.requisicoes.find(item=>item.url==='/api/conferir').opcoes.body);
   assert.equal(consulta.consultar_sisplan, true);
   assert.equal(ui.obter('coluna-faccao').hidden, false);
-  assert.equal(ui.obter('lotes').children[0].children[0].textContent, '00002 · Facção fictícia');
-  assert.equal(ui.obter('lotes').children[0].children[1].textContent, '20 · Costura');
+  const [selecao, faccao, setor] = ui.obter('lotes').children[0].children;
+  assert.equal(faccao.textContent, '00002 · Facção fictícia');
+  assert.equal(setor.textContent, '20 · Costura');
+  assert.equal(selecao.children[0].checked, false);
+  assert.equal(ui.obter('imprimir').disabled, true);
+  selecao.children[0].checked = true;
+  selecao.children[0].onchange();
   await ui.obter('imprimir').onclick();
   const envio = JSON.parse(ui.requisicoes.find(item=>item.url==='/api/iniciar').opcoes.body);
   assert.equal(envio.consultar_sisplan, true);

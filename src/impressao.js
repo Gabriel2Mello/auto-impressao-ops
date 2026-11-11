@@ -10,6 +10,7 @@ function aguardarPreferencias() {
 let modo = 'intervalos', conferido = null, ocupado = false, online = false, encerrado = false, pendente = false, impressora = '';
 let numeroIntervalo = 0, abaAtual = 'intervalos';
 let estadoAtual = null, preparando = true, resumoConferencia = null;
+let gruposConferencia = [];
 const pagina = crypto.randomUUID();
 const presenca = new AbortController();
 let ultimoEstado = '', saindo = false, historico = [];
@@ -64,7 +65,14 @@ function atualizarBotoes() {
   for (const input of $('intervalos').querySelectorAll('input')) {
     if (input.dataset.campo === 'setor') input.disabled = automatico;
   }
-  $('imprimir').disabled = !conferido || ocupado || pendente || !online || !impressora || encerrado;
+  let selecionadas = 0;
+  for (const grupo of gruposConferencia) {
+    grupo.checkbox.disabled = !conferido || ocupado || pendente || !online || encerrado;
+    if (grupo.checkbox.checked) selecionadas += grupo.ordens.length;
+  }
+  $('imprimir').disabled = !conferido || !selecionadas || ocupado || pendente || !online || !impressora || encerrado;
+  $('imprimir').textContent = selecionadas ? `Imprimir ${selecionadas} ${selecionadas === 1 ? 'OP' : 'OPs'}` : 'Imprimir lote';
+  if (resumoConferencia) $('resumo').textContent = `${selecionadas} de ${resumoConferencia.total} OPs selecionadas`;
   $('parar').hidden = !ocupado;
   $('selecionar-impressora').disabled = ocupado || pendente || !online || encerrado;
   $('atualizar-impressoras').disabled = ocupado || pendente || !online || encerrado;
@@ -103,12 +111,10 @@ function invalidar() {
   atualizarContagemOrdens();
   conferido = null;
   preparando = true; resumoConferencia = null;
+  gruposConferencia = [];
   $('titulo-conferencia').textContent = 'Conferência';
   $('resumo').textContent = 'Informe as OPs e confira o lote.';
   $('lotes').replaceChildren();
-  const linha = document.createElement('tr'), celula = document.createElement('td');
-  celula.colSpan = 3; celula.className = 'vazio'; celula.textContent = 'Aguardando conferência das OPs.';
-  linha.append(celula); $('lotes').append(linha);
   $('mensagem').textContent = '';
   atualizarBotoes();
 }
@@ -133,6 +139,47 @@ function entrada() {
   if (modo === 'lista') return {modo, consultar_sisplan, ordens: $('ordens').value, setor: $('setor-lista').value};
   return {modo, consultar_sisplan, intervalos: Array.from($('intervalos').children, linha => Object.fromEntries(
     Array.from(linha.querySelectorAll('input'), input => [input.dataset.campo, input.value])))};
+}
+function mostrarLotes(lotes, comFaccao) {
+  $('coluna-faccao').hidden = !comFaccao;
+  $('tabela-conferencia').classList.toggle('com-faccao', comFaccao);
+  $('lotes').replaceChildren();
+  const grupos = new Map();
+  for (const [indice, lote] of lotes.entries()) {
+    const chave = `${lote.faccao ?? ''}/${lote.setor}`;
+    if (!grupos.has(chave)) grupos.set(chave, {lote, ordens: [], indices: []});
+    const grupo = grupos.get(chave);
+    grupo.ordens.push(...lote.ordens);
+    grupo.indices.push(indice);
+  }
+  gruposConferencia = [...grupos.values()];
+  if (comFaccao) gruposConferencia.sort((a, b) =>
+    a.lote.faccao.localeCompare(b.lote.faccao) || a.lote.setor.localeCompare(b.lote.setor));
+
+  const local = (codigo, nome) => codigo + (nome ? ` · ${nome}` : '');
+  for (const grupo of gruposConferencia) {
+    const {lote, ordens} = grupo;
+    const linha = document.createElement('tr'), selecao = document.createElement('td');
+    const setor = local(lote.setor, lote.setor_nome);
+    const faccao = comFaccao ? local(lote.faccao, lote.faccao_nome) : '';
+    const nomeSetor = (lote.setor_nome || '').normalize('NFD').replace(/\p{Diacritic}/gu, '');
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = (!comFaccao || lote.faccao === '00261') && !/\bexpedicao\b/i.test(nomeSetor);
+    checkbox.setAttribute('aria-label', `Imprimir setor ${setor}${faccao ? `, facção ${faccao}` : ''}`);
+    checkbox.onchange = atualizarBotoes;
+    grupo.checkbox = checkbox;
+    selecao.append(checkbox);
+    linha.append(selecao);
+    const valores = [setor, ordens.length, ordens.slice(0, 100).join(' · ') + (ordens.length > 100 ? ` · … e mais ${ordens.length - 100} OPs` : '')];
+    if (comFaccao) valores.unshift(faccao);
+    for (const valor of valores) {
+      const celula = document.createElement('td');
+      celula.textContent = valor;
+      linha.append(celula);
+    }
+    $('lotes').append(linha);
+  }
 }
 async function api(caminho, dados) {
   const resposta = await fetch(caminho, {
@@ -288,21 +335,7 @@ $('formulario').onsubmit = async evento => {
     conferido = {...dados, conferencia_id: resultado.conferencia_id}; preparando = true; resumoConferencia = resultado;
     $('mensagem').textContent = '';
     $('titulo-conferencia').textContent = 'Conferência';
-    $('coluna-faccao').hidden = !dados.consultar_sisplan;
-    $('tabela-conferencia').classList.toggle('com-faccao', dados.consultar_sisplan);
-    $('lotes').replaceChildren();
-    for (const lote of resultado.lotes) {
-      const linha = document.createElement('tr');
-      const local = (codigo, nome) => codigo + (nome ? ` · ${nome}` : '');
-      const valores = [local(lote.setor, lote.setor_nome), lote.ordens.length, lote.ordens.slice(0, 100).join(' · ') + (lote.ordens.length > 100 ? ` · … e mais ${lote.ordens.length - 100} OPs` : '')];
-      if (dados.consultar_sisplan) valores.unshift(local(lote.faccao, lote.faccao_nome));
-      for (const valor of valores) {
-        const celula = document.createElement('td'); celula.textContent = valor; linha.append(celula);
-      }
-      $('lotes').append(linha);
-    }
-    $('resumo').textContent = `${resultado.total} OPs · ${resultado.lotes.length} ${dados.consultar_sisplan ? 'grupo(s) de facção/setor' : 'setor(es)'}`;
-    $('imprimir').textContent = `Imprimir ${resultado.total} OPs`;
+    mostrarLotes(resultado.lotes, dados.consultar_sisplan);
 
     selecionarAba('conferencia');
     atualizarBotoes();
@@ -312,8 +345,10 @@ $('formulario').onsubmit = async evento => {
 };
 $('imprimir').onclick = async () => {
   if (!conferido || pendente || ocupado || encerrado) return;
+  const grupos_selecionados = gruposConferencia.filter(grupo => grupo.checkbox.checked).flatMap(grupo => grupo.indices);
+  if (!grupos_selecionados.length) return;
   pendente = true; atualizarBotoes(); $('mensagem').textContent = '';
-  try { const estado = await api('/api/iniciar', {...conferido, impressora}); conferido = null; preparando = false; $('titulo-conferencia').textContent = 'Lote enviado'; mostrarEstado(estado); }
+  try { const estado = await api('/api/iniciar', {...conferido, grupos_selecionados, impressora}); conferido = null; preparando = false; $('titulo-conferencia').textContent = 'Lote enviado'; mostrarEstado(estado); }
   catch (erro) { conferido = null; $('mensagem').textContent = erro.message + ' Confira o andamento antes de preparar outro lote.'; }
   finally { pendente = false; atualizarBotoes(); }
 };

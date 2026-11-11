@@ -64,6 +64,10 @@ mostra os códigos e nomes da facção e do setor e agrupa as OPs pela localiza�
 encontrada. A impressão preenche esses dois filtros no Sisplan. Desmarcada,
 preserva o fluxo anterior, sem consulta ao banco e com setor padrão 10.
 
+Na **Conferência**, marque os grupos de facção e setor que deseja imprimir.
+Quando o Sisplan identifica a localização, Expedição e grupos fora da
+facção **00261** começam desmarcados.
+
 A localização atual considera as linhas de `sisplan.faccao_001` com saldo
 positivo por cor/tamanho: `qt_orig - quant - quant_2 - quant_i - quant_f`,
 tratando valores nulos como zero. Consulta todas as partes da OP. O setor **11**

@@ -112,6 +112,14 @@ class EstadoImpressao:
                 if atuais != conferencia['lotes']:
                     raise ConflitoExecucao('A localização das OPs mudou no Sisplan. Confira novamente antes de imprimir.')
                 lotes = atuais
+            grupos = entrada.get('grupos_selecionados')
+            if 'grupos_selecionados' in entrada:
+                if (not isinstance(grupos, list) or not 1 <= len(grupos) <= len(lotes)
+                        or any(type(i) is not int or not 0 <= i < len(lotes) for i in grupos)
+                        or len(set(grupos)) != len(grupos)):
+                    raise ValueError('Selecione pelo menos um grupo válido para imprimir.')
+                indices = set(grupos)
+                lotes = [lote for indice, lote in enumerate(lotes) if indice in indices]
             nome = self.impressoras.validar(entrada.get('impressora'))
             if nome != self.impressoras.selecionada:
                 raise ConflitoExecucao('A impressora foi alterada em outra aba. Confira a impressora selecionada antes de imprimir.')

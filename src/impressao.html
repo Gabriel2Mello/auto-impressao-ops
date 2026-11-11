@@ -62,9 +62,9 @@
 
     <div id="rodape-intervalos"><div id="acoes-conferir" class="acoes conferir-lote"><label class="opcao-sisplan" title="Identifica a localização atual das OPs, sem informar o setor."><input id="consultar-sisplan" type="checkbox" __CONSULTAR_SISPLAN__>Consultar no Sisplan</label><button id="conferir" type="submit" form="formulario" class="botao-principal" disabled>Conferir OPs</button></div></div>
   <section id="modo-conferencia" class="cartao conferencia" hidden aria-labelledby="titulo-conferencia">
-    <div id="cabecalho-conferencia" class="titulo-secao" hidden><div><h2 id="titulo-conferencia" tabindex="-1">Conferência</h2><p id="resumo" class="dica"></p></div><div id="acoes-impressao" class="acoes" hidden><button id="imprimir" type="button" class="botao-principal" disabled>Imprimir lote</button></div></div>
+    <div id="cabecalho-conferencia" class="titulo-secao" hidden><div><h2 id="titulo-conferencia" tabindex="-1">Conferência</h2><p id="resumo" class="dica" role="status"></p></div><div id="acoes-impressao" class="acoes" hidden><button id="imprimir" type="button" class="botao-principal" disabled>Imprimir lote</button></div></div>
     <p id="requisito-impressao" class="dica requisito" hidden>Antes de imprimir, abra o Sisplan da empresa 002 no relatório de facção, aba <strong>Envio</strong>.</p>
-    <div id="tabela-conferencia" class="tabela" hidden><table><thead><tr><th id="coluna-faccao" scope="col" hidden>Facção</th><th scope="col">Setor</th><th scope="col" aria-label="Quantidade">Qtd.</th><th scope="col">Ordens de produção</th></tr></thead><tbody id="lotes"><tr><td colspan="3" class="vazio">As OPs aparecerão aqui depois da conferência.</td></tr></tbody></table></div>
+    <div id="tabela-conferencia" class="tabela" hidden><table><thead><tr><th id="coluna-selecao" scope="col" aria-label="Selecionar para impressão"></th><th id="coluna-faccao" scope="col" hidden>Facção</th><th scope="col">Setor</th><th scope="col" aria-label="Quantidade">Qtd.</th><th scope="col">Ordens de produção</th></tr></thead><tbody id="lotes"></tbody></table></div>
     <p id="conferencia-vazia" class="vazio">Confira as OPs para revisar o lote antes de imprimir.</p>
 
   </section>

@@ -17,6 +17,7 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
     addEventListener(nome,acao) { if(nome==='click'){const anterior=this.onclick;this.onclick=(...args)=>{anterior?.(...args);return acao(...args);};} else this['on'+nome]=acao; }
     getBoundingClientRect() { return this.rect || {top:0,bottom:0}; }
     focus() {}
+    setSelectionRange(inicio, fim) { this.selectionStart = inicio; this.selectionEnd = fim; }
     showModal() { this.open = true; }
     close() { this.open = false; }
     querySelectorAll() { return this.children.flatMap(filho => filho.tag === 'input' ? [filho] : filho.querySelectorAll()); }
@@ -65,6 +66,56 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
   };
 }
 const avancar = () => new Promise(resolve => setImmediate(resolve));
+
+test('listas filtram letras e preservam os separadores e o ano dos pedidos', () => {
+  const ui = painel();
+  for (const [id, entrada, esperado] of [
+    ['ordens', '12a3, 45;\n6-7', '123, 45;\n67'],
+    ['pedidos', '2025-a123,\n45b6', '2025-123,\n456']
+  ]) {
+    const campo = ui.obter(id);
+    campo.value = entrada;
+    campo.selectionStart = campo.selectionEnd = entrada.length;
+    campo.oninput();
+    assert.equal(campo.value, esperado);
+    assert.equal(campo.selectionStart, esperado.length);
+  }
+  ui.eventos.pagehide();
+});
+
+test('campos dos intervalos aceitam somente dígitos, inclusive ao colar', () => {
+  const ui = painel();
+  ui.obter('adicionar').onclick();
+  for (const linha of ui.obter('intervalos').children) {
+    for (const input of linha.querySelectorAll('input')) {
+      input.value = '12a.3b4';
+      input.selectionStart = 4; input.selectionEnd = 7;
+      input.oninput();
+      assert.equal(input.value, '1234');
+      assert.equal(input.selectionStart, 2);
+      assert.equal(input.selectionEnd, 4);
+    }
+  }
+  ui.eventos.pagehide();
+});
+
+test('ao sair de De, Até recebe o mesmo valor em cada intervalo', () => {
+  const ui = painel();
+  ui.obter('adicionar').onclick();
+  const [primeiro, segundo] = ui.obter('intervalos').children.map(linha => linha.querySelectorAll('input'));
+  primeiro[0].value = '001234';
+  primeiro[0].onblur();
+  assert.equal(primeiro[1].value, '001234');
+  primeiro[1].value = '001240';
+  segundo[0].value = '567890';
+  segundo[0].onblur();
+  assert.equal(segundo[1].value, '567890');
+  assert.equal(primeiro[1].value, '001240');
+  primeiro[0].value = '';
+  primeiro[0].onblur();
+  assert.equal(primeiro[1].value, '');
+  ui.eventos.pagehide();
+});
 
 test('portal preserva a autenticação do Edge e fechar a janela não envia parada', async () => {
   const ui = painel({portal:true});

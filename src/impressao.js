@@ -122,6 +122,15 @@ function invalidar() {
   $('mensagem').textContent = '';
   atualizarBotoes();
 }
+function filtrarCaracteres(input, proibidos) {
+  const inicio = input.selectionStart, fim = input.selectionEnd, valor = input.value;
+  const filtrado = valor.replace(proibidos, '');
+  if (filtrado === valor) return;
+  input.value = filtrado;
+  if (inicio !== null && fim !== null) input.setSelectionRange(
+    valor.slice(0, inicio).replace(proibidos, '').length,
+    valor.slice(0, fim).replace(proibidos, '').length);
+}
 function adicionarIntervalo() {
   if ($('intervalos').children.length >= 100) return;
   const linha = document.createElement('div'); linha.className = 'intervalo';
@@ -131,8 +140,13 @@ function adicionarIntervalo() {
     input.id = `${chave}-${numero}`; input.dataset.campo = chave; input.inputMode = 'numeric';
     input.maxLength = chave === 'setor' ? 6 : 12; input.autocomplete = 'off'; input.value = valor;
     input.placeholder = chave === 'de' ? 'Ex.: 123456' : chave === 'para' ? 'Mesma OP' : '10';
+    input.addEventListener('input', () => filtrarCaracteres(input, /[^0-9]/g));
     label.htmlFor = input.id; label.textContent = titulo; grupo.append(label, input); linha.append(grupo);
   }
+  const [de, para] = linha.querySelectorAll('input');
+  de.addEventListener('blur', () => {
+    if (para.value !== de.value) { para.value = de.value; invalidar(); }
+  });
   const remover = document.createElement('button'); remover.type = 'button'; remover.textContent = '×'; remover.title = 'Remover intervalo';
   remover.setAttribute('aria-label', `Remover intervalo ${numero}`);
   remover.onclick = () => { linha.remove(); if (!$('intervalos').children.length) adicionarIntervalo(); invalidar(); };
@@ -422,6 +436,8 @@ window.addEventListener('pagehide', () => {
   presenca.abort();
 });
 document.querySelectorAll('[data-aba]').forEach(botao => { botao.onclick = () => selecionarAba(botao.dataset.aba); });
+$('ordens').addEventListener('input', () => filtrarCaracteres($('ordens'), /[^0-9\s,;]/g));
+$('pedidos').addEventListener('input', () => filtrarCaracteres($('pedidos'), /[^0-9\s,\-]/g));
 $('campos').addEventListener('input', invalidar);
 $('consultar-sisplan').onchange = () => {
   const valor = $('consultar-sisplan').checked;

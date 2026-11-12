@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const caminho = require('node:path');
 
-function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=false, desktop=false, temaBackend='escuro', consultarSalvo=false}={}) {
+function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=false, desktop=false, portal=false, temaBackend='escuro', consultarSalvo=false}={}) {
   let alteracoes = 0, leitura, recusarLeitura;
   const requisicoes = [], eventos = {}, respostasConfirmacao = [], respostas = new Map();
   class Elemento {
@@ -28,7 +28,7 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
     document: {
       get cookie() { if (falhaCookie) throw Error('Cookies indisponíveis'); return cookie; },
       set cookie(valor) { if (falhaCookie) throw Error('Cookies indisponíveis'); cookie = valor; },
-      getElementById: obter, querySelector: seletor => ({content: seletor.includes('impressao-desktop') ? (desktop ? '1' : '0') : seletor.includes('impressao-tema') ? temaBackend : 'token-sintetico'}), querySelectorAll: () => [],
+      getElementById: obter, querySelector: seletor => ({content: seletor.includes('impressao-desktop') ? (desktop ? '1' : '0') : seletor.includes('impressao-portal') ? (portal ? '1' : '0') : seletor.includes('impressao-tema') ? temaBackend : 'token-sintetico'}), querySelectorAll: () => [],
       documentElement: {dataset: {},setAttribute(nome,valor){this.dataset.tema=valor;}}, createElement: tag => Object.assign(new Elemento(), {tag})
     },
     window: {addEventListener: (nome, funcao) => { eventos[nome] = funcao; }},
@@ -40,7 +40,7 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
     },
     confirm: () => respostasConfirmacao.shift(),
     // Qualquer retorno ao polling em segundo plano faz os testes falharem.
-    setTimeout() { throw Error('O painel parado não deve agendar atualização.'); },
+    setTimeout() { if (!portal) throw Error('O painel local parado não deve agendar atualização.'); },
     fetch: async (url, opcoes) => {
       requisicoes.push({url, opcoes});
       if (url === '/api/acompanhar') {
@@ -65,6 +65,19 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
   };
 }
 const avancar = () => new Promise(resolve => setImmediate(resolve));
+
+test('portal preserva a autenticação do Edge e fechar a janela não envia parada', async () => {
+  const ui = painel({portal:true});
+  await avancar();
+  assert.equal(ui.obter('encerrar').hidden, true);
+  const [pedido] = ui.requisicoes;
+  assert.equal(pedido.url, '/api/estado');
+  assert.equal(pedido.opcoes.headers['X-Impressao-Token'], 'token-sintetico');
+  assert.equal(pedido.opcoes.headers.Authorization, undefined);
+  ui.eventos.beforeunload({preventDefault() { assert.fail('Portal não bloqueia fechar a janela'); }});
+  ui.eventos.pagehide();
+  assert.equal(ui.requisicoes.length, 1);
+});
 
 test('preferência do Sisplan é restaurada do servidor e salva ao marcar e desmarcar', async () => {
   for (const desktop of [false, true]) {
@@ -139,6 +152,41 @@ test('consulta opcional envia escolha, exibe facção/setor e vincula a impress�
   assert.equal(ui.obter('setor-lista').disabled, false);
   assert.equal(ui.obter('setor-lista').value, '10');
   assert.equal(ui.obter('imprimir').disabled, true);
+  ui.eventos.pagehide();
+});
+
+test('Pedido consulta com preferência desligada e imprime apenas os grupos marcados', async () => {
+  const ui = painel(); await avancar();
+  ui.enviar(`data: ${JSON.stringify(ui.estado)}\n\n`); await avancar();
+  vm.runInNewContext("selecionarAba('pedido')", ui.sandbox);
+  assert.equal(ui.obter('opcao-sisplan').hidden, true);
+  ui.obter('pedidos').value = '12345, 2025-67890';
+  const pedidos = ['2026-12345', '2025-67890'];
+  const lotes = [
+    {faccao:'00261', setor:'20', setor_nome:'Costura', ordens:['000001', '000002']},
+    {faccao:'00261', setor:'30', setor_nome:'EXPEDIÇÃO FILIAL', ordens:['000003']},
+    {faccao:'00002', setor:'20', setor_nome:'Costura', ordens:['000004']},
+  ];
+  ui.respostas.set('/api/conferir', {ok:true, json:async()=>({pedidos, lotes, total:4, conferencia_id:'pedido'})});
+  await ui.obter('formulario').onsubmit({preventDefault(){}});
+  const busca = JSON.parse(ui.requisicoes.find(item=>item.url==='/api/conferir').opcoes.body);
+  assert.deepEqual(busca, {modo:'pedido', consultar_sisplan:true, pedidos:'12345, 2025-67890'});
+  assert.equal(ui.obter('pedidos').value, pedidos.join('\n'));
+  const [outra, costura, expedicao] = ui.obter('lotes').children.map(linha=>linha.children[0].children[0]);
+  assert.deepEqual([outra.checked, costura.checked, expedicao.checked], [false, true, false]);
+  assert.equal(ui.obter('imprimir').textContent, 'Imprimir 2 OPs');
+  costura.checked = false;
+  costura.onchange();
+  assert.equal(ui.obter('imprimir').disabled, true);
+  await ui.obter('imprimir').onclick();
+  assert.equal(ui.requisicoes.some(item=>item.url==='/api/iniciar'), false);
+  expedicao.checked = true;
+  expedicao.onchange();
+  assert.equal(ui.obter('imprimir').textContent, 'Imprimir 1 OP');
+  await ui.obter('imprimir').onclick();
+  const envio = JSON.parse(ui.requisicoes.find(item=>item.url==='/api/iniciar').opcoes.body);
+  assert.deepEqual(envio.grupos_selecionados, [1]);
+  assert.equal(envio.conferencia_id, 'pedido');
   ui.eventos.pagehide();
 });
 
@@ -334,6 +382,22 @@ test('início inclui a impressora exibida e bloqueia troca durante o lote', asyn
   const quantidade = ui.requisicoes.length;
   await ui.obter('selecionar-impressora').onclick();
   assert.equal(ui.requisicoes.length, quantidade);
+  ui.eventos.pagehide();
+});
+
+test('Sisplan ocupado preserva a conferência e exige novo clique para imprimir', async () => {
+  const ui = painel({portal:true}); await avancar();
+  await ui.obter('formulario').onsubmit({preventDefault() {}});
+  ui.respostas.set('/api/iniciar', {ok:false, status:409,
+    json: async () => ({erro:'Aguarde o Financeiro.', codigo:'sisplan_ocupado'})});
+  await ui.obter('imprimir').onclick();
+  assert.equal(ui.obter('mensagem').textContent, 'Aguarde o Financeiro.');
+  assert.equal(ui.obter('imprimir').disabled, false);
+  assert.equal(ui.requisicoes.filter(item => item.url === '/api/iniciar').length, 1);
+  ui.respostas.delete('/api/iniciar');
+  await ui.obter('imprimir').onclick();
+  assert.equal(ui.requisicoes.filter(item => item.url === '/api/iniciar').length, 2);
+  assert.equal(ui.requisicoes.filter(item => item.url === '/api/conferir').length, 1);
   ui.eventos.pagehide();
 });
 

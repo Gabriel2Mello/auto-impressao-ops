@@ -63,6 +63,8 @@ dialog{width:min(520px,calc(100% - 32px));max-height:calc(100dvh - 32px);overflo
 /* Título e modos ficam acima da rolagem independente da preparação. */
 .preparacao>.entrada{flex-shrink:0}.rolagem-preparacao{flex:1;min-height:0;overflow-y:auto;overflow-wrap:anywhere;overscroll-behavior-y:contain}
 #rodape-intervalos>.conferir-lote{margin-top:16px;margin-bottom:16px}
+#rodape-pedido>.conferir-lote{margin:12px 0 16px}
+.modos button{min-width:0;overflow-wrap:anywhere;padding-inline:6px}
 .principal{min-height:360px}
 @media(max-width:700px){.preparacao{contain:none;height:70dvh;min-height:400px}}
 

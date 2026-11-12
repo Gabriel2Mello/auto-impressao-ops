@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="impressao-token" content="__TOKEN__">
+  <meta name="impressao-portal" content="__PORTAL__">
   <meta name="impressao-desktop" content="__DESKTOP__">
   <meta name="impressao-tema" content="__TEMA__">
   <title>Impressão de OPs · Nunes</title>
@@ -38,6 +39,7 @@
       <div class="modos" role="group" aria-label="Preparação e conferência do lote">
         <button type="button" data-modo="intervalos" data-aba="intervalos" aria-controls="modo-intervalos" aria-pressed="true">Por intervalo</button>
         <button type="button" data-modo="lista" data-aba="lista" aria-controls="modo-lista" aria-pressed="false">Lista de OPs</button>
+        <button type="button" data-modo="pedido" data-aba="pedido" aria-controls="modo-pedido" aria-pressed="false">Pedido</button>
         <button type="button" data-aba="conferencia" aria-controls="modo-conferencia" aria-pressed="false">Conferência</button>
       </div>
     </section>
@@ -57,10 +59,16 @@
             <p id="dica-lista" class="dica">Uma OP por linha, separadas por espaço ou vírgula.</p>
             <div id="rodape-lista" class="rodape-lista"><div class="setor-lista"><label for="setor-lista">Setor</label><input id="setor-lista" inputmode="numeric" maxlength="6" value="10" autocomplete="off"></div></div>
           </div>
+          <div id="modo-pedido" hidden>
+            <label for="pedidos">Números dos pedidos</label>
+            <textarea id="pedidos" rows="5" maxlength="60000" placeholder="12345&#10;2025-67890" aria-describedby="dica-pedidos"></textarea>
+            <p id="dica-pedidos" class="dica">Separe por vírgula ou linha. Sem o ano, será utilizado o ano atual.</p>
+            <div id="rodape-pedido"></div>
+          </div>
         </fieldset>
       </form>
 
-    <div id="rodape-intervalos"><div id="acoes-conferir" class="acoes conferir-lote"><label class="opcao-sisplan" title="Identifica a localização atual das OPs, sem informar o setor."><input id="consultar-sisplan" type="checkbox" __CONSULTAR_SISPLAN__>Consultar no Sisplan</label><button id="conferir" type="submit" form="formulario" class="botao-principal" disabled>Conferir OPs</button></div></div>
+    <div id="rodape-intervalos"><div id="acoes-conferir" class="acoes conferir-lote"><label id="opcao-sisplan" class="opcao-sisplan" title="Identifica a localização atual das OPs, sem informar o setor."><input id="consultar-sisplan" type="checkbox" __CONSULTAR_SISPLAN__>Consultar no Sisplan</label><button id="conferir" type="submit" form="formulario" class="botao-principal" disabled>Conferir OPs</button></div></div>
   <section id="modo-conferencia" class="cartao conferencia" hidden aria-labelledby="titulo-conferencia">
     <div id="cabecalho-conferencia" class="titulo-secao" hidden><div><h2 id="titulo-conferencia" tabindex="-1">Conferência</h2><p id="resumo" class="dica" role="status"></p></div><div id="acoes-impressao" class="acoes" hidden><button id="imprimir" type="button" class="botao-principal" disabled>Imprimir lote</button></div></div>
     <p id="requisito-impressao" class="dica requisito" hidden>Antes de imprimir, abra o Sisplan da empresa 002 no relatório de facção, aba <strong>Envio</strong>.</p>

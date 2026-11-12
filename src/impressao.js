@@ -2,6 +2,7 @@
 const $ = id => document.getElementById(id);
 const token = document.querySelector('meta[name="impressao-token"]').content;
 const desktop = document.querySelector('meta[name="impressao-desktop"]')?.content === '1';
+const portal = document.querySelector('meta[name="impressao-portal"]')?.content === '1';
 let salvamentoTema = Promise.resolve(true);
 let salvamentoConsulta = Promise.resolve(true);
 function aguardarPreferencias() {
@@ -82,14 +83,17 @@ function atualizarBotoes() {
 }
 function mostrarAbas() {
   const acoes = $('acoes-conferir');
-  const destino = $(modo === 'lista' ? 'rodape-lista' : 'rodape-intervalos');
+  const destino = $(`rodape-${modo}`);
   if (acoes.parentElement !== destino) destino.append(acoes);
   document.querySelectorAll('[data-aba]').forEach(botao => botao.setAttribute('aria-pressed', String(botao.dataset.aba === abaAtual)));
   $('formulario').hidden = abaAtual === 'conferencia';
   $('acoes-conferir').hidden = abaAtual === 'conferencia';
   $('modo-intervalos').hidden = abaAtual !== 'intervalos';
   $('modo-lista').hidden = abaAtual !== 'lista';
+  $('modo-pedido').hidden = abaAtual !== 'pedido';
   $('modo-conferencia').hidden = abaAtual !== 'conferencia';
+  $('opcao-sisplan').hidden = modo === 'pedido';
+  $('conferir').textContent = modo === 'pedido' ? 'Buscar OPs' : 'Conferir OPs';
 }
 function selecionarAba(aba) {
   if (aba !== 'conferencia' && aba !== modo) {
@@ -135,6 +139,7 @@ function adicionarIntervalo() {
   linha.append(remover); $('intervalos').append(linha); invalidar();
 }
 function entrada() {
+  if (modo === 'pedido') return {modo, consultar_sisplan: true, pedidos: $('pedidos').value};
   const consultar_sisplan = Boolean($('consultar-sisplan').checked);
   if (modo === 'lista') return {modo, consultar_sisplan, ordens: $('ordens').value, setor: $('setor-lista').value};
   return {modo, consultar_sisplan, intervalos: Array.from($('intervalos').children, linha => Object.fromEntries(
@@ -185,12 +190,14 @@ async function api(caminho, dados) {
   const resposta = await fetch(caminho, {
     method: dados === undefined ? 'GET' : 'POST',
     keepalive: caminho === '/api/preferencia-consulta',
-    headers: {Authorization: `Bearer ${token}`, ...(dados === undefined ? {} : {'Content-Type': 'application/json'})},
+    headers: {...(portal ? {'X-Impressao-Token': token} : {Authorization: `Bearer ${token}`}),
+      ...(dados === undefined ? {} : {'Content-Type': 'application/json'})},
     body: dados === undefined ? undefined : JSON.stringify(dados), signal: AbortSignal.timeout(
       dados?.consultar_sisplan ? 30000 : 10000)
   });
   const retorno = await resposta.json();
-  if (!resposta.ok) throw Error(retorno.erro || 'Não foi possível concluir a solicitação.');
+  if (!resposta.ok) throw Object.assign(Error(retorno.erro || 'Não foi possível concluir a solicitação.'),
+    {status: resposta.status, codigo: retorno.codigo});
   return retorno;
 }
 function mostrarEstado(estado) {
@@ -325,13 +332,35 @@ async function acompanhar() {
     $('conexao').textContent = 'Conexão perdida. Reabra o programa para continuar.';
   }
 }
+async function acompanharPortal() {
+  if (saindo) return;
+  try {
+    const estado = await api('/api/estado');
+    online = true;
+    $('conexao').textContent = '';
+    mostrarEstado(estado);
+    atualizarBotoes();
+  } catch (erro) {
+    if (saindo) return;
+    if (erro.status !== 409) {
+      online = false;
+      atualizarBotoes();
+      $('conexao').textContent = erro.status === 403 ? 'Sessão expirada. Reabra o painel.' : 'Conexão com o TS01 indisponível.';
+      if (erro.status === 403) return;
+    }
+  }
+  if (!saindo) setTimeout(acompanharPortal, ocupado ? 2000 : 5000);
+}
 $('formulario').onsubmit = async evento => {
   evento.preventDefault(); if (pendente || ocupado || encerrado) return;
+  const dados = entrada();
   pendente = true; atualizarBotoes(); $('mensagem').textContent = '';
-  if ($('consultar-sisplan').checked) $('mensagem').textContent = 'Consultando facção e setor no Sisplan…';
+  if (dados.consultar_sisplan) $('mensagem').textContent = modo === 'pedido'
+    ? 'Buscando as OPs dos pedidos no Sisplan…' : 'Consultando facção e setor no Sisplan…';
   try {
-    if (!await salvamentoConsulta) throw Error('Não foi possível salvar a opção Consultar no Sisplan. Selecione a opção novamente para tentar salvar.');
-    const dados = entrada(), resultado = await api('/api/conferir', dados);
+    if (modo !== 'pedido' && !await salvamentoConsulta) throw Error('Não foi possível salvar a opção Consultar no Sisplan. Selecione a opção novamente para tentar salvar.');
+    const resultado = await api('/api/conferir', dados);
+    if (dados.modo === 'pedido') dados.pedidos = $('pedidos').value = resultado.pedidos.join('\n');
     conferido = {...dados, conferencia_id: resultado.conferencia_id}; preparando = true; resumoConferencia = resultado;
     $('mensagem').textContent = '';
     $('titulo-conferencia').textContent = 'Conferência';
@@ -349,7 +378,13 @@ $('imprimir').onclick = async () => {
   if (!grupos_selecionados.length) return;
   pendente = true; atualizarBotoes(); $('mensagem').textContent = '';
   try { const estado = await api('/api/iniciar', {...conferido, grupos_selecionados, impressora}); conferido = null; preparando = false; $('titulo-conferencia').textContent = 'Lote enviado'; mostrarEstado(estado); }
-  catch (erro) { conferido = null; $('mensagem').textContent = erro.message + ' Confira o andamento antes de preparar outro lote.'; }
+  catch (erro) {
+    $('mensagem').textContent = erro.message;
+    if (erro.codigo !== 'sisplan_ocupado') {
+      conferido = null;
+      $('mensagem').textContent += ' Confira o andamento antes de preparar outro lote.';
+    }
+  }
   finally { pendente = false; atualizarBotoes(); }
 };
 $('parar').onclick = async () => {
@@ -369,12 +404,13 @@ $('encerrar').onclick = async () => {
   } catch (erro) { $('mensagem').textContent = erro.message; }
 };
 window.addEventListener('beforeunload', evento => {
-  if (encerrado || desktop) return;
+  if (encerrado || desktop || portal) return;
   evento.preventDefault();
   evento.returnValue = '';
 });
 window.addEventListener('pagehide', () => {
   saindo = true;
+  if (portal) return;
   if (!encerrado) {
     // O evento só ocorre após confirmar a saída; cancelar mantém a conexão e o programa.
     fetch('/api/fechar-pagina', {
@@ -412,4 +448,11 @@ if (desktop) {
     });
   });
 }
-adicionarIntervalo(); acompanhar();
+adicionarIntervalo();
+if (portal) {
+  $('encerrar').hidden = true;
+  window.addEventListener('pageshow', evento => { if (evento.persisted) window.location.reload(); });
+  acompanharPortal();
+} else {
+  acompanhar();
+}

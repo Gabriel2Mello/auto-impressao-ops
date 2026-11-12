@@ -16,6 +16,34 @@ from src.interface_web import criar_servidor
 from src.servico_impressao import EstadoImpressao
 
 
+def verificar_rolagem_pedido(janela):
+    janela.evaluate_js("document.querySelector('[data-aba=pedido]').click()")
+    inicial = None
+    for excedente in (False, True, False):
+        valor = json.dumps('\n'.join(['12345'] * 100) if excedente else '')
+        janela.evaluate_js(f"""(() => {{
+          const campo=document.getElementById('pedidos');
+          campo.value={valor};
+          campo.dispatchEvent(new Event('input',{{bubbles:true}}));
+        }})()""")
+        time.sleep(.1)
+        medidas = janela.evaluate_js("""(() => {
+          const campo=document.getElementById('pedidos'), r=campo.getBoundingClientRect();
+          const barra=[...document.querySelectorAll('.barra-rolagem')].some(b=>{
+            const t=b.getBoundingClientRect();
+            return !b.hidden && Math.abs(t.right-r.right+campo.clientLeft)<1 && Math.abs(t.top-r.top-campo.clientTop)<1;
+          });
+          return {barra, largura:campo.clientWidth, esquerda:r.left,
+            excesso:document.documentElement.scrollWidth>document.documentElement.clientWidth};
+        })()""")
+        assert medidas['barra'] == excedente and not medidas['excesso'], medidas
+        geometria = (medidas['largura'], medidas['esquerda'])
+        if inicial is None:
+            inicial = geometria
+        assert geometria == inicial, medidas
+    janela.evaluate_js("document.querySelector('[data-aba=intervalos]').click()")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--manter', type=int, default=0, help='Segundos para inspeção visual ao final')
@@ -35,8 +63,16 @@ def main():
                 raise AssertionError('O ensaio visual não pode executar impressão.')
 
             estado = EstadoImpressao(executor=proibido, impressoras=impressoras,
-                                     consultar=lambda lotes: [dict(lote, faccao='00001',
+                                     consultar=lambda lotes: [dict(lote, faccao='00261',
                                          faccao_nome='Facção fictícia', setor_nome='Costura fictícia') for lote in lotes],
+                                     buscar_pedidos=lambda _: [
+                                         dict(faccao='00261', faccao_nome='Facção fictícia', setor='10',
+                                              setor_nome='Costura', ordens=['123456']),
+                                         dict(faccao='00261', faccao_nome='Facção fictícia', setor='20',
+                                              setor_nome='Expedição', ordens=['123457']),
+                                         dict(faccao='00001', faccao_nome='Outra facção', setor='10',
+                                              setor_nome='Costura', ordens=['123458']),
+                                     ],
                                      diario=DiarioImpressao(raiz / 'diario.sqlite3'))
             servidor, _ = criar_servidor(estado, porta=0, modo_desktop=True)
 
@@ -92,6 +128,7 @@ def main():
                             for largura, altura in [(1180, 820), (1920, 1000), (1000, 720), (760, 600), (360, 780)]:
                                 janela.resize(largura, altura)
                                 time.sleep(.3)
+                                verificar_rolagem_pedido(janela)
                                 for tema in ['claro', 'escuro']:
                                     janela.evaluate_js(f'tema.aplicar({json.dumps(tema)})')
                                     for excedente in [False, True]:
@@ -198,6 +235,7 @@ def main():
                             time.sleep(.3)
                             medidas = janela.evaluate_js('({largura:innerWidth,excesso:document.documentElement.scrollWidth>document.documentElement.clientWidth})')
                             assert not medidas['excesso'], medidas
+                            verificar_rolagem_pedido(janela)
                             evidencias.append(dict(zoom=2, maximizada=True, **medidas))
                             janela.native.Invoke(Action(lambda: setattr(janela.native.webview, 'ZoomFactor', 1.0)))
                             janela.restore()
@@ -260,6 +298,17 @@ def main():
                             assert janela.evaluate_js("conferido === null && !document.getElementById('setor-lista').disabled"), 'Desmarcar não restaurou o modo manual'
                             janela.evaluate_js("document.getElementById('ordens').value='123458';document.getElementById('ordens').dispatchEvent(new Event('input',{bubbles:true}))")
                             assert janela.evaluate_js('conferido === null && document.getElementById("imprimir").disabled'), 'Edição não invalidou conferência'
+                            janela.evaluate_js("document.querySelector('[data-aba=pedido]').click();$('pedidos').value='12345';$('conferir').click()")
+                            for _ in range(50):
+                                if janela.evaluate_js("conferido?.modo === 'pedido'"):
+                                    break
+                                time.sleep(.1)
+                            assert janela.evaluate_js("""(() => {
+                              const marcados=[...document.querySelectorAll('#lotes input')].map(c=>c.checked);
+                              return conferido?.modo==='pedido' && marcados.join() === 'false,true,false'
+                                && /^\\d{4}-12345$/.test($('pedidos').value) && !$('imprimir').disabled;
+                            })()"""), 'Pedido não exibiu os grupos esperados'
+                            assert estado.worker is None, 'Busca por pedido iniciou executor'
                             # Persistência pelo servidor real, inclusive com o WebView em modo privado.
                             janela.evaluate_js("document.getElementById('tema').click()")
                             for _ in range(50):

@@ -1,16 +1,17 @@
 """Painel HTTP restrito ao próprio computador, sem dependências web adicionais."""
 
-from integracao_hub import atender_integracao
+from integracao_hub import SisplanOcupado, atender_integracao
 from contextlib import nullcontext
 
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from secrets import compare_digest, token_urlsafe
-from threading import Event, RLock, Thread
+from threading import Event, Lock, RLock, Thread
 from time import monotonic
 from urllib.parse import urlsplit
 
 from src.servico_impressao import ConflitoExecucao, EstadoImpressao
+from src.portal_ops import GET_PAINEL, POST_PAINEL, SEGREDO_HEX, TOKEN_PAINEL
 from src.utils import RECURSOS
 
 
@@ -18,10 +19,11 @@ class ServidorInterface(ThreadingHTTPServer):
     daemon_threads = True
     ESPERA_FECHAMENTO = 3
 
-    def __init__(self, manipulador, estado, porta, modo_desktop=False):
+    def __init__(self, manipulador, estado, porta, modo_desktop=False, *, portal=None):
         super().__init__(('127.0.0.1', porta), manipulador)
         self.estado = estado
         self.modo_desktop = modo_desktop
+        self.portal = portal
         self.desktop = None
         self.trava_paginas = RLock()
         self.paginas = {}
@@ -65,7 +67,7 @@ class ServidorInterface(ThreadingHTTPServer):
         Thread(target=self.shutdown, daemon=True).start()
 
     def service_actions(self):
-        if self.modo_desktop:
+        if self.modo_desktop or self.portal is not None:
             return
         with self.trava_paginas:
             if not self.teve_pagina and monotonic() - self.criado_em >= 120:
@@ -85,9 +87,17 @@ class ServidorInterface(ThreadingHTTPServer):
         super().server_close()
 
 
-def criar_servidor(estado=None, porta=8766, medidor_abertura=None, modo_desktop=False):
-    estado = estado if estado is not None else EstadoImpressao(medidor_abertura=medidor_abertura)
+def criar_servidor(estado=None, porta=8766, medidor_abertura=None, modo_desktop=False, *,
+                   portal=None, reservar_sisplan=None):
+    estado = estado if estado is not None else EstadoImpressao(
+        medidor_abertura=medidor_abertura, exigir_conferencia=portal is not None,
+        reservar_sisplan=reservar_sisplan,
+    )
     token = token_urlsafe(32)
+    trava_portal = Lock()
+    operador_portal = None
+    token_portal = None
+    ultimo_acesso = 0.0
     recursos = {
         '/': ('src/impressao.html', 'text/html; charset=utf-8'),
         '/impressao.css': ('src/impressao.css', 'text/css; charset=utf-8'),
@@ -118,6 +128,53 @@ def criar_servidor(estado=None, porta=8766, medidor_abertura=None, modo_desktop=
             return (self.host_valido()
                     and compare_digest(self.headers.get('Authorization', ''), f'Bearer {token}')
                     and self.headers.get('Origin') in ((origem,) if self.command == 'POST' else (None, origem)))
+
+        def atender_portal(self, atender_painel):
+            nonlocal operador_portal, token_portal, ultimo_acesso
+            caminho = self.path
+            rotas = GET_PAINEL if self.command == 'GET' else POST_PAINEL
+            segredos = self.headers.get_all('X-Impressao-Portal', [])
+            operadores = self.headers.get_all('X-Impressao-Operador', [])
+            origens = [[], [portal.origem]] if self.command == 'GET' else [[portal.origem]]
+            if (not self.host_valido() or len(segredos) != 1 or not SEGREDO_HEX.fullmatch(segredos[0])
+                    or not compare_digest(segredos[0], portal.segredo)
+                    or len(operadores) != 1 or not SEGREDO_HEX.fullmatch(operadores[0])
+                    or self.headers.get_all('Origin', []) not in origens):
+                self.responder(403, {'erro': 'Acesso ao portal não autorizado.'})
+                return
+            if caminho not in rotas:
+                self.responder(404, {'erro': 'Recurso não encontrado.'})
+                return
+            if caminho != '/' and not caminho.startswith('/api/'):
+                atender_painel()
+                return
+            if not trava_portal.acquire(blocking=False):
+                self.responder(409, {'erro': 'Aguarde a solicitação em andamento.'})
+                return
+            try:
+                agora = monotonic()
+                ocupado = estado.worker is not None and estado.worker.is_alive()
+                expirou = not ocupado and agora - ultimo_acesso >= 120
+                if caminho == '/':
+                    if operador_portal not in (None, operadores[0]) and not expirou:
+                        self.responder(409, {'erro': 'O portal está em uso por outra conta.'})
+                        return
+                    if operador_portal is None or expirou:
+                        operador_portal = operadores[0]
+                        token_portal = token_urlsafe(32)
+                        with estado.trava:
+                            estado.conferencia_sisplan = None
+                else:
+                    tokens = self.headers.get_all('X-Impressao-Token', [])
+                    if (operador_portal != operadores[0] or expirou or len(tokens) != 1
+                            or not TOKEN_PAINEL.fullmatch(tokens[0])
+                            or not compare_digest(tokens[0], token_portal)):
+                        self.responder(403, {'erro': 'Sessão do portal expirada. Reabra o painel.'})
+                        return
+                ultimo_acesso = agora
+                atender_painel()
+            finally:
+                trava_portal.release()
 
         def responder(self, status, conteudo, tipo='application/json; charset=utf-8'):
             if not isinstance(conteudo, bytes):
@@ -167,12 +224,18 @@ def criar_servidor(estado=None, porta=8766, medidor_abertura=None, modo_desktop=
                 servidor.fechar_pagina(pagina, presenca)
 
         def do_GET(self):
-            if self.path == '/desktop/ativar':
+            if portal is None and self.path == '/desktop/ativar':
                 from desktop_impressao import atender_ativacao
                 atender_ativacao(self)
                 return
             if atender_integracao(self):
                 return
+            if portal is not None:
+                self.atender_portal(self.get_painel)
+            else:
+                self.get_painel()
+
+        def get_painel(self):
             caminho = urlsplit(self.path).path
             if not self.host_valido():
                 self.responder(403, {'erro': 'Acesso não autorizado.'})
@@ -180,7 +243,9 @@ def criar_servidor(estado=None, porta=8766, medidor_abertura=None, modo_desktop=
                 arquivo, tipo = recursos[caminho]
                 conteudo = (RECURSOS / arquivo).read_bytes()
                 if caminho == '/':
-                    conteudo = conteudo.replace(b'__TOKEN__', token.encode('ascii'))
+                    credencial = token_portal if portal is not None else token
+                    conteudo = conteudo.replace(b'__TOKEN__', credencial.encode('ascii'))
+                    conteudo = conteudo.replace(b'__PORTAL__', b'1' if portal is not None else b'0')
                     controles = ''
                     if getattr(servidor, 'demonstracao', False):
                         from demonstracao import CONTROLES
@@ -191,7 +256,7 @@ def criar_servidor(estado=None, porta=8766, medidor_abertura=None, modo_desktop=
                     from desktop_preferencias import ler_tema
                     conteudo = conteudo.replace(b'__TEMA__', (ler_tema() if servidor.modo_desktop else 'escuro').encode('ascii'))
                 self.responder(200, conteudo, tipo)
-            elif not self.autorizado():
+            elif portal is None and not self.autorizado():
                 self.responder(403, {'erro': 'Acesso não autorizado.'})
             elif caminho == '/api/estado':
                 self.responder(200, estado.situacao())
@@ -206,16 +271,21 @@ def criar_servidor(estado=None, porta=8766, medidor_abertura=None, modo_desktop=
                 self.responder(404, {'erro': 'Recurso não encontrado.'})
 
         def do_POST(self):
-            if self.path == '/desktop/ativar':
+            if portal is None and self.path == '/desktop/ativar':
                 from desktop_impressao import atender_ativacao
                 atender_ativacao(self)
                 return
             if atender_integracao(self):
                 return
-            if not self.autorizado():
+            if portal is not None:
+                self.atender_portal(self.post_painel)
+            elif not self.autorizado():
                 self.close_connection = True
                 self.responder(403, {'erro': 'Acesso não autorizado.'})
-                return
+            else:
+                self.post_painel()
+
+        def post_painel(self):
             try:
                 tamanhos = self.headers.get_all('Content-Length', [])
                 if (len(tamanhos) != 1 or not tamanhos[0].isascii() or not tamanhos[0].isdigit()
@@ -261,11 +331,13 @@ def criar_servidor(estado=None, porta=8766, medidor_abertura=None, modo_desktop=
                     self.responder(404, {'erro': 'Recurso não encontrado.'})
                     return
                 self.responder(200, estado.situacao())
+            except SisplanOcupado as erro:
+                self.responder(409, {'erro': str(erro), 'codigo': 'sisplan_ocupado'})
             except ConflitoExecucao as erro:
                 self.responder(409, {'erro': str(erro)})
-            except (ValueError, RuntimeError) as erro:
+            except (ValueError, RuntimeError, RecursionError) as erro:
                 self.responder(400, {'erro': str(erro)})
 
     with medidor_abertura.etapa('servidor_local') if medidor_abertura is not None else nullcontext():
-        servidor = ServidorInterface(Manipulador, estado, porta, modo_desktop)
+        servidor = ServidorInterface(Manipulador, estado, porta, modo_desktop, portal=portal)
     return servidor, estado

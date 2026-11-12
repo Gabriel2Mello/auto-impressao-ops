@@ -6,6 +6,7 @@ A abertura padrão agora usa a janela desktop, com preparação/conferência e
 acompanhamento no padrão Cofre/Busca e Move. Consulte [DESKTOP.md](DESKTOP.md)
 para preparar o ambiente separado de 32 bits, abrir, empacotar e validar.
 As instruções de navegador abaixo continuam válidas usando `impressao.py --web`.
+Para uso remoto no navegador da operadora, consulte [Portal no TS01](PORTAL-TS01.md).
 
 ## Instalação e abertura
 
@@ -64,6 +65,8 @@ mostra os códigos e nomes da facção e do setor e agrupa as OPs pela localiza�
 encontrada. A impressão preenche esses dois filtros no Sisplan. Desmarcada,
 preserva o fluxo anterior, sem consulta ao banco e com setor padrão 10.
 
+Na aba **Pedido**, separe os números por vírgula ou por linha. A busca completa
+o ano atual quando ele é omitido e consulta as OPs vinculadas no Sisplan.
 Na **Conferência**, marque os grupos de facção e setor que deseja imprimir.
 Quando o Sisplan identifica a localização, Expedição e grupos fora da
 facção **00261** começam desmarcados.
@@ -81,15 +84,10 @@ as localizações com a conferência aprovada; mudança ou indisponibilidade exi
 nova conferência. Movimentações posteriores a essa leitura ainda podem ocorrer
 no ERP; a consulta não trava a produção no Sisplan.
 
-O acesso utiliza o perfil `principal` da configuração privada descrita em
-[acesso ao banco](../estrutura-nunes/area-nunes/banco-sisplan.md), sem copiar
-credenciais. `NUNES_BANCO_CONFIG` permite indicar outro caminho local para o
-JSON e `NUNES_BANCO_PERFIL` seleciona o perfil. A aplicação importa seu próprio
-adaptador e driver, sem importar código de outros projetos. Em outra máquina
-ou no pacote desktop, configure esse caminho explicitamente. Instale as
-dependências atualizadas no ambiente usado e reabra a aplicação; executáveis
-anteriores precisam ser reconstruídos. A demonstração simula também a consulta,
-sem acessar o banco real.
+O aplicativo usa a conta Windows da sessão para consultar a API interna no
+TS01. A credencial do banco fica no servidor. Para habilitar a consulta, siga
+[Instalação da API no TS01](../nunes-api-sisplan/README.md). A demonstração simula a
+consulta localmente.
 
 O acompanhamento usa uma conexão contínua que envia o estado apenas quando há mudanças. Quando o painel está parado, não há consultas periódicas de estado nem redesenho da tela. Mensagens internas mantêm a conexão aberta para detectar o fechamento da aba, sem alterar a interface.
 
@@ -111,7 +109,7 @@ O ícone coração com N conserva a cor `#475569`. A assinatura **g2mello · Ess
 inclui os dois traços sob os `l` e o link de autoria. Os recursos ficam neste
 projeto; sua execução não depende do caminho do hub.
 
-O servidor usa a biblioteca padrão Python, sem framework web ou build de frontend. Apenas a execução real importa `pywinauto`. Os comandos da API exigem token da sessão, origem local e Host correspondente; a conferência só consulta o banco quando a opção Sisplan está marcada e nunca imprime nem controla as telas do ERP.
+O servidor usa a biblioteca padrão Python, sem framework web ou build de frontend. Apenas a execução real importa `pywinauto`. Os comandos da API exigem token da sessão, origem local e Host correspondente. A conferência consulta o banco na aba Pedido ou quando a opção Sisplan está marcada. Ela nunca imprime nem controla as telas do ERP.
 
 ## Verificação
 

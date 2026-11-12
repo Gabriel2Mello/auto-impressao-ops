@@ -70,6 +70,9 @@ Segue o [padrão de DPI](../estrutura-nunes/identidade-visual/interfaces/desktop
 ```
 
 Distribua a pasta inteira `dist\Impressao OPs`, incluindo `_internal`.
+**Consultar no Sisplan** requer acesso à API interna no TS01 pela conta
+Windows da operadora. A conferência com setor manual funciona
+independentemente da API.
 O pacote não contém configurações privadas, diário, `.env`, dados operacionais
 ou ambiente virtual. Não instala runtimes nem substitui uma instalação existente.
 Atalhos e identidade Windows usam o ícone local da Impressão.

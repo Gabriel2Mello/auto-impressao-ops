@@ -1,5 +1,6 @@
 # Recursos explícitos; sem diário, configurações privadas ou dados de negócio.
 from pathlib import Path
+import sys
 
 raiz = Path(SPECPATH)
 a = Analysis([str(raiz / 'impressao.py')], pathex=[str(raiz)],
@@ -13,5 +14,5 @@ a = Analysis([str(raiz / 'impressao.py')], pathex=[str(raiz)],
     excludes=['PyQt5', 'PyQt6', 'PySide2', 'PySide6', 'cefpython3'])
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='Impressao OPs',
-          console=False, icon=str(raiz / 'icons/icone.ico'), uac_admin=False)
+          console='--portal' in sys.argv[1:], icon=str(raiz / 'icons/icone.ico'), uac_admin=False)
 coll = COLLECT(exe, a.binaries, a.datas, name='Impressao OPs')

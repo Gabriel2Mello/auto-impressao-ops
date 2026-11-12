@@ -33,12 +33,21 @@ class EstadoDemonstracao(EstadoImpressao):
         impressoras.selecionar(filas[0])
         super().__init__(executor=self.simular, impressoras=impressoras,
                          consultar=self.consultar_demo,
+                         buscar_pedidos=self.buscar_pedidos_demo,
                          diario=DiarioDemonstracao(Path(pasta) / 'diario.sqlite3'))
 
     @staticmethod
     def consultar_demo(lotes):
         return [dict(lote, faccao='00001', faccao_nome='Facção fictícia · Demonstração',
                      setor_nome='Setor fictício') for lote in lotes]
+
+    @staticmethod
+    def buscar_pedidos_demo(pedidos):
+        return [
+            dict(faccao='00261', faccao_nome='Facção fictícia', setor='10', setor_nome='Costura', ordens=['123456']),
+            dict(faccao='00261', faccao_nome='Facção fictícia', setor='20', setor_nome='Expedição', ordens=['123457']),
+            dict(faccao='00001', faccao_nome='Outra facção fictícia', setor='10', setor_nome='Costura', ordens=['123458']),
+        ]
 
     def configurar_demo(self, dados):
         with self.trava:

@@ -1,125 +1,13 @@
-"""Banco sintético em memória; nenhum acesso ao Sisplan ou à impressora."""
-import sqlite3
+"""Conferência e preferências do cliente, com consultas sintéticas."""
+from datetime import date
 import unittest
 from unittest.mock import Mock, patch
 
-from src.consulta_sisplan import ErroConsultaSisplan, conectar_configurado, consultar_localizacoes
 from src.entrada_web import montar_lotes
-from tests.test_interface_web import ComImpressoras
+from src.protocolo_consulta_ops import ErroConsultaSisplan
 from src.servico_impressao import ConflitoExecucao, EstadoImpressao
 from src.preferencias_impressao import ler_consulta
-
-
-class TestConsulta(unittest.TestCase):
-    def setUp(self):
-        self.banco = sqlite3.connect(':memory:')
-        self.addCleanup(self.banco.close)
-        self.banco.execute("ATTACH DATABASE ':memory:' AS sisplan")
-        self.banco.executescript('''CREATE TABLE sisplan.faccao_001
-            (numero TEXT, codcli TEXT, op TEXT, qt_orig INTEGER, quant INTEGER,
-             quant_2 INTEGER, quant_i INTEGER, quant_f INTEGER);
-            CREATE TABLE sisplan.entidade_001(codcli TEXT, nome TEXT);
-            CREATE TABLE sisplan.cadfluxo_001(codigo TEXT, descricao TEXT);
-            INSERT INTO sisplan.entidade_001 VALUES ('00001','Facção fictícia');
-            INSERT INTO sisplan.cadfluxo_001 VALUES ('20','Costura fictícia');''')
-        self.cursor = Mock()
-        self.conexao = Mock()
-        self.conexao.cursor.return_value = self.cursor
-
-        def executar(sql, parametros=()):
-            if sql.startswith('SET '):
-                return
-            self.resultado = self.banco.execute(sql.replace('%s', '?'), parametros).fetchall()
-        self.cursor.execute.side_effect = executar
-        self.cursor.fetchall.side_effect = lambda: self.resultado
-        self.lotes = [dict(setor='10', ordens=['000001', '000002'])]
-
-    def inserir(self, numero='000001', faccao='00001', setor='20', original=10,
-                quant=0, segunda=0, incompleto=0, perdido=0):
-        self.banco.execute('INSERT INTO sisplan.faccao_001 VALUES (?,?,?,?,?,?,?,?)',
-                           (numero, faccao, setor, original, quant, segunda, incompleto, perdido))
-
-    def consultar(self, lotes=None):
-        return consultar_localizacoes(lotes or self.lotes, conectar=lambda: self.conexao)
-
-    def test_saldo_por_linha_agrupa_e_ignora_etapas_baixadas(self):
-        self.inserir(quant=5)
-        self.inserir(quant=5)  # Outra cor/tamanho: não duplica impressão.
-        self.inserir(faccao='00002', setor='10', original=10, quant=3, segunda=2, incompleto=1, perdido=4)
-        self.inserir(numero='000002', faccao='00002', setor='30')
-        resultado = self.consultar()
-        self.assertEqual(resultado, [dict(faccao='00001', faccao_nome='Facção fictícia', setor='20',
-                                          setor_nome='Costura fictícia', ordens=['000001']),
-                                    dict(faccao='00002', faccao_nome='', setor='30', setor_nome='', ordens=['000002'])])
-        self.assertEqual(self.cursor.execute.call_args_list[0].args[0],
-                         'SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY')
-        self.assertEqual(self.cursor.execute.call_args.args[1], ('000001', '000002'))
-        self.conexao.rollback.assert_called_once()
-        self.cursor.close.assert_called_once()
-        self.conexao.close.assert_called_once()
-
-    def test_nulos_movimentados_e_mesmo_grupo(self):
-        self.inserir(quant=None, segunda=None, incompleto=None, perdido=None)
-        self.inserir(numero='000002')
-        self.assertEqual(self.consultar()[0]['ordens'], ['000001', '000002'])
-
-    def test_ignora_etiquetas_na_mesma_faccao_ou_em_outra(self):
-        self.inserir(numero='037442', faccao='00261', setor='10')
-        self.inserir(numero='037442', faccao='00261', setor='11')
-        self.inserir(numero='037442', faccao='00002', setor='11')
-        self.inserir(numero='037442', faccao=None, setor=' 11 ')
-        self.assertEqual(self.consultar([dict(setor='10', ordens=['037442'])]),
-                         [dict(faccao='00261', faccao_nome='', setor='10',
-                               setor_nome='', ordens=['037442'])])
-
-    def test_somente_etiquetas_nao_define_localizacao(self):
-        self.inserir(setor='11')
-        with self.assertRaisesRegex(ErroConsultaSisplan, 'OP 000001: não encontrada'):
-            self.consultar([dict(setor='10', ordens=['000001'])])
-
-    def test_etiquetas_nao_ocultam_ambiguidade_entre_localizacoes_produtivas(self):
-        self.inserir(setor='10')
-        self.inserir(setor='20')
-        self.inserir(setor='11')
-        with self.assertRaisesRegex(ErroConsultaSisplan, 'mais de uma localização') as erro:
-            self.consultar([dict(setor='10', ordens=['000001'])])
-        self.assertIn('setor 10', str(erro.exception))
-        self.assertIn('setor 20', str(erro.exception))
-        self.assertNotIn('setor 11', str(erro.exception))
-
-    def test_ausente_sem_saldo_e_localizacao_ambigua_bloqueiam(self):
-        for configurar, mensagem in [
-            (lambda: None, 'não encontrada'),
-            (lambda: self.inserir(quant=10), 'não encontrada'),
-            (lambda: (self.inserir(), self.inserir(setor='30')), 'mais de uma localização'),
-            (lambda: (self.inserir(), self.inserir(faccao='00002')), 'mais de uma localização'),
-            (lambda: self.inserir(faccao=None), 'inválido')]:
-            with self.subTest(mensagem=mensagem):
-                self.banco.execute('DELETE FROM sisplan.faccao_001')
-                configurar()
-                with self.assertRaisesRegex(ErroConsultaSisplan, mensagem):
-                    self.consultar([dict(setor='10', ordens=['000001'])])
-
-    def test_falha_na_consulta_fecha_conexao_sem_expor_segredos(self):
-        self.cursor.execute.side_effect = RuntimeError('senha secreta')
-        with self.assertRaises(ErroConsultaSisplan) as erro:
-            self.consultar()
-        self.assertNotIn('secreta', str(erro.exception))
-        self.conexao.rollback.assert_called_once()
-        self.conexao.close.assert_called_once()
-
-    def test_falha_na_configuracao_nao_expoe_conteudo(self):
-        with patch('src.consulta_sisplan.Path.read_text', side_effect=RuntimeError('senha secreta')):
-            with self.assertRaisesRegex(ErroConsultaSisplan, '^Banco Sisplan indisponível'):
-                conectar_configurado()
-
-    def test_falha_no_fechamento_bloqueia_resultado(self):
-        self.inserir()
-        self.conexao.rollback.side_effect = RuntimeError('erro privado')
-        with self.assertRaisesRegex(ErroConsultaSisplan, 'encerrar a leitura'):
-            self.consultar([dict(setor='10', ordens=['000001'])])
-        self.cursor.close.assert_called_once()
-        self.conexao.close.assert_called_once()
+from tests.test_interface_web import ComImpressoras
 
 
 class TestConferencia(ComImpressoras):
@@ -191,6 +79,48 @@ class TestConferencia(ComImpressoras):
                     estado.iniciar(dict(self.entrada, conferencia_id=resultado['conferencia_id']))
                 self.executor.assert_not_called()
                 self.assertEqual(estado.diario.consultar(), [])
+
+    def test_pedido_normaliza_ano_e_so_envia_grupo_selecionado(self):
+        ano = date.today().year
+        lotes = [
+            dict(faccao='00261', setor='20', ordens=['000001']),
+            dict(faccao='00001', setor='20', ordens=['000002']),
+            dict(faccao='00261', setor='30', ordens=['000003']),
+        ]
+        estado = self.estado()
+        estado.buscar_pedidos = Mock(return_value=lotes)
+        entrada = dict(modo='pedido', pedidos=f'12345, 2020-54321\r\n{ano}-12345',
+                       impressora=self.entrada['impressora'], consultar_sisplan=False)
+        resultado = estado.conferir(entrada)
+        pedidos = [f'{ano}-12345', '2020-54321']
+        self.assertEqual(resultado['pedidos'], pedidos)
+        estado.buscar_pedidos.assert_called_once_with(pedidos)
+        self.executor.assert_not_called()
+        estado.iniciar(dict(entrada, conferencia_id=resultado['conferencia_id'], grupos_selecionados=[1]))
+        estado.worker.join(3)
+        self.assertEqual(estado.buscar_pedidos.call_count, 2)
+        self.assertEqual(self.executor.call_args.args[0], [lotes[1]])
+        self.assertEqual([item['numero'] for item in estado.diario.consultar()], ['000002'])
+        self.consultar.assert_not_called()
+
+    def test_pedido_recusa_entrada_invalida_selecao_invalida_e_vinculo_alterado(self):
+        estado = self.estado()
+        lote = dict(faccao='00261', setor='20', ordens=['000001'])
+        estado.buscar_pedidos = Mock(return_value=[lote])
+        entrada = dict(modo='pedido', pedidos='2025-1234', impressora=self.entrada['impressora'])
+        with self.assertRaisesRegex(ValueError, 'Confira estes números'):
+            estado.conferir(dict(entrada, pedidos='1234, 25-5678'))
+        estado.buscar_pedidos.assert_not_called()
+        for selecao in ([], [True], [1], [0, 0]):
+            resultado = estado.conferir(entrada)
+            with self.assertRaisesRegex(ValueError, 'Selecione pelo menos um grupo válido'):
+                estado.iniciar(dict(entrada, conferencia_id=resultado['conferencia_id'], grupos_selecionados=selecao))
+        resultado = estado.conferir(entrada)
+        estado.buscar_pedidos.return_value = [dict(lote, ordens=['000002'])]
+        with self.assertRaisesRegex(ConflitoExecucao, 'mudaram no Sisplan'):
+            estado.iniciar(dict(entrada, conferencia_id=resultado['conferencia_id'], grupos_selecionados=[0]))
+        self.executor.assert_not_called()
+        self.assertEqual(estado.diario.consultar(), [])
 
 
 class TestPreferenciaConsulta(ComImpressoras):

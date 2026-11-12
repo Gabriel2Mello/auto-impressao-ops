@@ -1,8 +1,38 @@
 """Validação das entradas do painel, sem acessar Sisplan ou impressora."""
 
+from datetime import date
+from re import fullmatch, split
+
+from src.protocolo_consulta_ops import MAX_ORDENS, pedido_valido
 from src.utils import normalizar_ordem
 
-MAX_ORDENS = 5000
+MAX_TEXTO_PEDIDOS = 60000
+
+
+def analisar_pedidos(dados):
+    conteudo = texto(dados, 'pedidos')
+    if len(conteudo) > MAX_TEXTO_PEDIDOS:
+        raise ValueError('A lista de pedidos é muito grande.')
+    ano = date.today().year
+    pedidos, invalidos = {}, []
+    for parte in split(r'[,\r\n]', conteudo):
+        numero = parte.strip()
+        if not numero:
+            continue
+        pedido = f'{ano}-{numero}' if fullmatch(r'[0-9]{4,}', numero) else numero
+        if pedido_valido(pedido):
+            pedidos[pedido] = None
+        else:
+            invalidos.append(numero)
+    if invalidos:
+        raise ValueError('Confira estes números de pedido: ' + ', '.join(invalidos)[:400] + '.')
+    if not pedidos:
+        raise ValueError('Informe pelo menos um pedido.')
+    if len(pedidos) > MAX_ORDENS:
+        raise ValueError(f'O limite por execução é de {MAX_ORDENS} pedidos.')
+    if sum(len(pedido) + 1 for pedido in pedidos) - 1 > MAX_TEXTO_PEDIDOS:
+        raise ValueError('A lista de pedidos é muito grande depois de completar os anos. Divida os pedidos em lotes menores.')
+    return list(pedidos)
 
 
 def texto(dados, chave, padrao=''):
@@ -56,7 +86,7 @@ def montar_lotes(dados):
             normalizar_ordem(valor) for valor in valores
         ]})
     else:
-        raise ValueError('Escolha De / Para ou Lista de OPs.')
+        raise ValueError('Escolha Por intervalo, Lista de OPs ou Pedido.')
 
     # Uma OP repetida no mesmo setor é enviada somente uma vez por execução.
     vistos = set()

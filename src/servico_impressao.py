@@ -7,10 +7,11 @@ from secrets import token_urlsafe
 
 from threading import Event, Lock, Thread
 
-from src.entrada_web import montar_lotes
+from integracao_hub import SisplanOcupado
+from src.entrada_web import analisar_pedidos, montar_lotes
 from src.impressoras import Impressoras
 from src.diario_impressao import DiarioImpressao
-from src.consulta_sisplan import consultar_localizacoes
+from src.cliente_consulta_ops import consultar_localizacoes, consultar_pedidos
 from src.preferencias_impressao import ler_consulta, salvar_consulta
 
 
@@ -43,7 +44,8 @@ class ConflitoExecucao(RuntimeError):
 
 class EstadoImpressao:
     def __init__(self, executor=executar_lotes, impressoras=None, diario=None, medidor_abertura=None,
-                 consultar=consultar_localizacoes):
+                 consultar=consultar_localizacoes, buscar_pedidos=consultar_pedidos,
+                 *, exigir_conferencia=False, reservar_sisplan=None):
         with medidor_abertura.etapa('diario_local') if medidor_abertura is not None else nullcontext():
             self.diario = diario if diario is not None else DiarioImpressao()
         self.execucao = None
@@ -52,6 +54,9 @@ class EstadoImpressao:
         self.worker = None
         self.executor = executor
         self.consultar = consultar
+        self.buscar_pedidos = buscar_pedidos
+        self.exigir_conferencia = exigir_conferencia
+        self.reservar_sisplan = reservar_sisplan
         self.conferencia_sisplan = None
         with medidor_abertura.etapa('impressoras_windows') if medidor_abertura is not None else nullcontext():
             self.impressoras = impressoras if impressoras is not None else Impressoras()
@@ -99,55 +104,93 @@ class EstadoImpressao:
             self.consultar_sisplan = valor
 
     def iniciar(self, entrada):
-        lotes = montar_lotes(entrada)
+        por_pedido = isinstance(entrada, dict) and entrada.get('modo') == 'pedido'
+        original = analisar_pedidos(entrada) if por_pedido else montar_lotes(entrada)
+        automatico = por_pedido or entrada.get('consultar_sisplan', False)
+        consulta = self.buscar_pedidos if por_pedido else self.consultar
+        lotes = original
         with self.trava:
             self._exigir_disponivel()
             conferencia = self.conferencia_sisplan
             self.conferencia_sisplan = None
-            if entrada.get('consultar_sisplan', False):
+            if automatico or self.exigir_conferencia:
                 if (conferencia is None or entrada.get('conferencia_id') != conferencia['id']
-                        or lotes != conferencia['entrada']):
+                        or original != conferencia['entrada']):
                     raise ConflitoExecucao('Confira novamente as OPs no Sisplan antes de imprimir.')
-                atuais = self.consultar(lotes)
-                if atuais != conferencia['lotes']:
-                    raise ConflitoExecucao('A localização das OPs mudou no Sisplan. Confira novamente antes de imprimir.')
-                lotes = atuais
+                lotes = conferencia['lotes']
             grupos = entrada.get('grupos_selecionados')
-            if 'grupos_selecionados' in entrada:
+            selecionados = lotes
+            if por_pedido or 'grupos_selecionados' in entrada:
                 if (not isinstance(grupos, list) or not 1 <= len(grupos) <= len(lotes)
                         or any(type(i) is not int or not 0 <= i < len(lotes) for i in grupos)
                         or len(set(grupos)) != len(grupos)):
                     raise ValueError('Selecione pelo menos um grupo válido para imprimir.')
                 indices = set(grupos)
-                lotes = [lote for indice, lote in enumerate(lotes) if indice in indices]
+                selecionados = [lote for indice, lote in enumerate(lotes) if indice in indices]
+            if automatico:
+                atuais = consulta(original)
+                if atuais != conferencia['lotes']:
+                    raise ConflitoExecucao('As OPs ou suas localizações mudaram no Sisplan. Confira novamente antes de imprimir.')
+            lotes = selecionados
             nome = self.impressoras.validar(entrada.get('impressora'))
             if nome != self.impressoras.selecionada:
                 raise ConflitoExecucao('A impressora foi alterada em outra aba. Confira a impressora selecionada antes de imprimir.')
-            self.execucao = self.diario.iniciar(lotes, nome, exigir_conferencia=False)
-            self.impressora_lote = nome
-            self.uso_registrado = False
-            self.parar.clear()
-            self.dados = {
-                'fase': 'imprimindo', 'mensagem': 'Conectando ao Sisplan…',
-                'total': sum(len(lote['ordens']) for lote in lotes),
-                'enviadas': 0, 'atual': '', 'setor': '', 'atividade': [],
-            }
-            self.worker = Thread(target=self._executar, args=(lotes,), daemon=False)
-            self.worker.start()
+            try:
+                reserva = self.reservar_sisplan() if self.reservar_sisplan else None
+            except SisplanOcupado:
+                self.conferencia_sisplan = conferencia
+                raise
+
+            def executar():
+                try:
+                    self._executar(lotes)
+                finally:
+                    if reserva is not None:
+                        reserva.fechar()
+
+            try:
+                self.execucao = self.diario.iniciar(lotes, nome, exigir_conferencia=False)
+                self.impressora_lote = nome
+                self.uso_registrado = False
+                self.parar.clear()
+                self.dados = {
+                    'fase': 'imprimindo', 'mensagem': 'Conectando ao Sisplan…',
+                    'total': sum(len(lote['ordens']) for lote in lotes),
+                    'enviadas': 0, 'atual': '', 'setor': '', 'atividade': [],
+                }
+                self.worker = Thread(target=executar, daemon=False)
+                try:
+                    self.worker.start()
+                except RuntimeError:
+                    self.worker = None
+                    self.dados.update(fase='erro', mensagem='Não foi possível iniciar o lote.')
+                    self.diario.interromper(self.execucao)
+                    raise
+            except BaseException:
+                if reserva is not None:
+                    reserva.fechar()
+                raise
 
     def conferir(self, entrada):
-        lotes = montar_lotes(entrada)
+        por_pedido = isinstance(entrada, dict) and entrada.get('modo') == 'pedido'
+        lotes = analisar_pedidos(entrada) if por_pedido else montar_lotes(entrada)
+        consulta = self.buscar_pedidos if por_pedido else self.consultar
         with self.trava:
             self._exigir_disponivel()
             self.conferencia_sisplan = None
             conferencia_id = None
-            if entrada.get('consultar_sisplan', False):
+            automatico = por_pedido or entrada.get('consultar_sisplan', False)
+            if automatico or self.exigir_conferencia:
                 originais = deepcopy(lotes)
-                lotes = self.consultar(lotes)
+                if automatico:
+                    lotes = consulta(lotes)
                 conferencia_id = token_urlsafe(24)
                 self.conferencia_sisplan = dict(id=conferencia_id, entrada=originais, lotes=deepcopy(lotes))
-            return dict(lotes=lotes, total=sum(len(lote['ordens']) for lote in lotes),
-                        conferencia_id=conferencia_id)
+            resultado = dict(lotes=lotes, total=sum(len(lote['ordens']) for lote in lotes),
+                             conferencia_id=conferencia_id)
+            if por_pedido:
+                resultado['pedidos'] = originais
+            return resultado
 
     def conferir_impressao(self, dados):
         with self.trava:

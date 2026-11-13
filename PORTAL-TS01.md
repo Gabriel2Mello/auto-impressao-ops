@@ -60,6 +60,34 @@ Se precisar voltar à 8771, com o executor ocioso pare a tarefa, restaure a
 versão anterior e o `portal.json` com a origem antiga, remova somente a
 aplicação `/impressao-ops` do site de teste no IIS e inicie a tarefa.
 
+### Liberar o portal para os usuários do domínio
+
+A decisão de 13/11/2026 é permitir a operação do portal aos usuários do
+domínio, inclusive a impressão. No PowerShell administrativo, adicione
+**Usuários do Domínio** ao grupo de operação existente. O SID terminado em
+`-513` identifica o grupo independentemente do idioma.
+
+```powershell
+Import-Module ActiveDirectory -ErrorAction Stop
+$dominio = Get-ADDomain -Identity 'gratitude.local' -ErrorAction Stop
+$usuarios = Get-ADGroup -Identity "$($dominio.DomainSID.Value)-513" `
+    -Server $dominio.PDCEmulator -ErrorAction Stop
+Add-ADGroupMember -Identity 'ImpressaoOPs-Operacao' `
+    -Members $usuarios -Server $dominio.PDCEmulator -ErrorAction Stop
+```
+
+A API continua restrita ao grupo `ImpressaoOPs-Consulta`, usado pelo executor
+na sessão da ADM07. O painel continua reservado a um operador por vez.
+
+Em uma estação do domínio que resolva `ts01` e confie no certificado, teste
+com um usuário comum que ainda não tinha acesso, após sair e entrar no
+Windows. O Edge pode usar a conta Windows da sessão automaticamente. Se
+pedir credenciais, inclua `ts01` na política existente `AuthServerAllowlist`
+do Edge por GPO, preserve as demais entradas e reabra o navegador. Em um
+prompt manual, use `GRATITUDE\usuario` para identificar o domínio correto.
+Confirme o acesso automático e faça uma conferência sem imprimir.
+[Política de autenticação integrada do Edge](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/authserverallowlist)
+
 ### Diagnóstico da instalação
 
 - Se o Windows pedir reinício para concluir a instalação dos recursos, retome
@@ -79,6 +107,16 @@ aplicação `/impressao-ops` do site de teste no IIS e inicie a tarefa.
   O portal também precisa de uma entrada para
   `C:\Nunes\ImpressaoOpsPortal\gateway\PortalOps.exe` em **Restrições ISAPI e
   CGI**. O script da 443 adiciona essa entrada específica.
+- O teste com `curl --cacert` não comprova a confiança usada pelo WinHTTP.
+  O executor da ADM07 precisa confiar no certificado da API na 8772. Após
+  instalar a parte pública do certificado da API em `CurrentUser\Root` da
+  ADM07, a requisição chegou ao IIS, mas o WinHTTP ainda retornou `401` com
+  a política de logon automático `1`. A política `0` retornou `200` na
+  chamada direta à URL fixa da API, com validação TLS e redirecionamentos
+  desativados. A conferência no portal funcionou com o executor atualizado.
+- Se a OP estiver selecionada e **Imprimir** continuar desabilitado, confira
+  se a fila está selecionada no topo do painel. A fila precisa estar visível
+  para o executor na sessão ADM07.
 
 ### Instalação inicial nas portas dedicadas
 

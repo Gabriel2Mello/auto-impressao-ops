@@ -24,7 +24,7 @@ try {
     Copy-Item -Recurse -LiteralPath (Join-Path $distOps 'Impressao OPs') -Destination (Join-Path $portalOps 'executor')
     Copy-Item -Recurse -LiteralPath (Join-Path $distOps 'PortalOps') -Destination (Join-Path $portalOps 'gateway')
     Copy-Item -LiteralPath 'iis-portal-ops\web.config' -Destination $siteOps
-    Copy-Item -LiteralPath 'PORTAL-TS01.md', 'Instalar Impressao OPs TS01.ps1' -Destination $portalOps
+    Copy-Item -LiteralPath 'PORTAL-TS01.md', 'Instalar Impressao OPs TS01.ps1', 'Publicar Impressao OPs 443.ps1' -Destination $portalOps
     $zipOps = Join-Path $entregaOps 'Impressao de OPs - Portal TS01.zip'
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [IO.Compression.ZipFile]::CreateFromDirectory($pacoteOps, $zipOps, [IO.Compression.CompressionLevel]::Optimal, $false)

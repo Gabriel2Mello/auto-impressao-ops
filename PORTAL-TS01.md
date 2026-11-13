@@ -32,6 +32,56 @@ Após mudanças de grupo, renove a sessão Windows das contas antes de testar.
 
 ## Instalar
 
+### Publicar a instalação existente na porta 443
+
+Endereço escolhido para o portal: `https://ts01/impressao-ops/`. Use o ZIP
+atualizado que contém `Publicar Impressao OPs 443.ps1`. O script usa o site
+`Nunes-TesteHttpsTs01` e seu vínculo HTTPS com SNI para `ts01`. A API continua
+em `ts01.gratitude.local:8772`. Preserve o vínculo genérico da 443 do RD Web.
+
+1. Com a Impressão ociosa, pare a tarefa `Nunes Impressao de OPs`. Faça uma
+   cópia dos arquivos da versão instalada e do `portal.json` em local com as
+   mesmas restrições de acesso. Preserve toda a pasta `privado`.
+2. Extraia o ZIP atualizado em `C:\Nunes`, substituindo os arquivos públicos
+   do portal. Na sessão administrativa do TS01, com a ADM07 conectada, execute:
+
+   ```powershell
+   & 'C:\Nunes\ImpressaoOpsPortal\Publicar Impressao OPs 443.ps1' `
+       -Certificado '7F93521D52598898FC765532221714791C4B9F6E'
+   ```
+
+3. Confirme a tarefa em `Running` e o Sisplan aberto na sessão da ADM07.
+   No PC da operadora, confirme que `ts01` resolve e que o Windows confia no
+   certificado público. Abra `https://ts01/impressao-ops/` como ADM06, faça
+   uma conferência sem imprimir e confira que uma conta fora do grupo é
+   recusada. Depois da publicação, use o novo endereço para o portal.
+
+Se precisar voltar à 8771, com o executor ocioso pare a tarefa, restaure a
+versão anterior e o `portal.json` com a origem antiga, remova somente a
+aplicação `/impressao-ops` do site de teste no IIS e inicie a tarefa.
+
+### Diagnóstico da instalação
+
+- Se o Windows pedir reinício para concluir a instalação dos recursos, retome
+  após a janela de reinício e confirme que `Import-Module ActiveDirectory` funciona.
+- Grave os sites no IIS antes de aplicar configurações por nome. O erro
+  `GetSection` com caminho `MACHINE/WEBROOT/APPHOST/<site>` ocorreu quando o
+  instalador tentou acessar a configuração antes de gravar o site.
+- Confirme os certificados SNI das portas 8771 e 8772 com
+  `netsh http show sslcert hostnameport=ts01.gratitude.local:8772`, repetindo para
+  8771. Um site iniciado pode estar sem certificado registrado no HTTP.sys.
+- Use a janela administrativa para configurar o IIS e a janela comum da
+  ADM07 para testar a API. Uma janela elevada com `davi.adm` usa essa identidade.
+  Após adicionar a conta ao grupo, use **Sair** e entre novamente. Desconectar
+  o RDP preserva a sessão antiga. Confira com `whoami /groups`.
+- Em caso de `401` ou `404`, leia o substatus no log do site. Veja o
+  [diagnóstico da API](../../nunes-api-sisplan/README.md#diagnostico-no-iis).
+  O portal também precisa de uma entrada para
+  `C:\Nunes\ImpressaoOpsPortal\gateway\PortalOps.exe` em **Restrições ISAPI e
+  CGI**. O script da 443 adiciona essa entrada específica.
+
+### Instalação inicial nas portas dedicadas
+
 1. Extraia os ZIPs do portal e da API em `C:\Nunes`. Os diretórios de instalação
    são `ImpressaoOpsPortal` e `NunesApiSisplan`. Se já houver uma instalação da API, preserve a
    configuração privada e atualize o programa pela rotina de manutenção do IIS.

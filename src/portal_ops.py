@@ -14,6 +14,8 @@ POST_PAINEL = frozenset({
     '/api/conferir', '/api/iniciar', '/api/conferir-impressao',
     '/api/impressora', '/api/preferencia-consulta', '/api/parar',
 })
+CAMINHO_TS01 = '/impressao-ops'
+ORIGEM_TS01 = 'https://ts01'
 LIMITE_CORPO = 100000
 LIMITE_RESPOSTA = 4 * 1024 * 1024
 SEGREDO_HEX = re.compile(r'[0-9a-f]{64}')
@@ -36,13 +38,15 @@ def ler_config_portal(arquivo):
     porta_executor = dados.get('porta_executor')
     porta_api = dados.get('porta_api')
     segredo = dados.get('segredo')
-    origem_valida = isinstance(origem, str) and re.fullmatch(
+    origem_legada = isinstance(origem, str) and re.fullmatch(
         r'https://ts01\.gratitude\.local:([1-9][0-9]{0,4})', origem,
     )
-    if (not origem_valida or type(porta_executor) is not int or type(porta_api) is not int
+    porta_portal = 443 if origem == ORIGEM_TS01 else int(origem_legada[1]) if origem_legada else 0
+    if (type(porta_executor) is not int or type(porta_api) is not int
             or not 1024 <= porta_executor <= 65535 or not 1024 <= porta_api <= 65535
-            or not 1024 <= int(origem_valida[1]) <= 65535
-            or len({porta_executor, porta_api, int(origem_valida[1])}) != 3
+            or not 1 <= porta_portal <= 65535
+            or (porta_portal != 443 and porta_portal < 1024)
+            or len({porta_executor, porta_api, porta_portal}) != 3
             or not isinstance(segredo, str) or not SEGREDO_HEX.fullmatch(segredo)):
         raise ValueError('Confira a origem HTTPS, as três portas e o segredo do portal.')
     return ConfigPortal(origem, porta_executor, porta_api, segredo)

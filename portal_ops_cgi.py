@@ -8,7 +8,10 @@ import os
 from pathlib import Path
 import sys
 
-from src.portal_ops import GET_PAINEL, LIMITE_CORPO, LIMITE_RESPOSTA, POST_PAINEL, TOKEN_PAINEL, ler_config_portal
+from src.portal_ops import (
+    CAMINHO_TS01, GET_PAINEL, LIMITE_CORPO, LIMITE_RESPOSTA, ORIGEM_TS01,
+    POST_PAINEL, TOKEN_PAINEL, ler_config_portal,
+)
 
 
 def erro(status, mensagem):
@@ -26,6 +29,12 @@ def atender(ambiente, entrada, config):
     metodo = ambiente.get('REQUEST_METHOD', '')
     rota = ambiente.get('URL') or ambiente.get('SCRIPT_NAME', '')
     origem = ambiente.get('HTTP_ORIGIN')
+    if config.origem == ORIGEM_TS01:
+        if metodo == 'GET' and rota == CAMINHO_TS01 and not ambiente.get('QUERY_STRING'):
+            return 308, [('Location', CAMINHO_TS01 + '/')], b''
+        if not rota.startswith(CAMINHO_TS01 + '/'):
+            return erro(404, 'Rota inexistente.')
+        rota = rota[len(CAMINHO_TS01):]
     rotas = {'GET': GET_PAINEL, 'POST': POST_PAINEL}.get(metodo, ())
     if rota not in rotas or ambiente.get('QUERY_STRING'):
         return erro(404, 'Rota inexistente.')

@@ -42,10 +42,11 @@ class TestPortalOps(ComImpressoras):
                                                      sisplan_por_operacao=True))
         self.estado = EstadoImpressao(executor=imprimir, exigir_conferencia=True,
                                      reservar_sisplan=impressao.reservar_sisplan)
-        config = ConfigPortal(self.origem, 18771, 8772, 'a' * 64)
+        self.servidor, self.config_portal = self.iniciar_executor(self.origem)
+
+    def iniciar_executor(self, origem):
+        config = ConfigPortal(origem, 18771, 8772, 'a' * 64)
         servidor, _ = criar_servidor(self.estado, porta=0, portal=config)
-        self.config_portal = ConfigPortal(self.origem, servidor.server_port, 8772, config.segredo)
-        self.servidor = servidor
         processo = Thread(target=servidor.serve_forever, daemon=True)
         processo.start()
 
@@ -58,6 +59,7 @@ class TestPortalOps(ComImpressoras):
             servidor.server_close()
 
         self.addCleanup(fechar)
+        return servidor, ConfigPortal(origem, servidor.server_port, 8772, config.segredo)
 
     def pedir(self, rota='/', dados=None, token='', conta=None, **ajustes):
         corpo = json.dumps(dados).encode() if dados is not None else b''
@@ -84,6 +86,26 @@ class TestPortalOps(ComImpressoras):
         self.assertEqual(self.pedir('/api/parar', {}, token, HTTP_ORIGIN='https://outra.origem')[0], 403)
         self.assertEqual(self.pedir('/api/parar', {}, token, HTTP_ORIGIN='')[0], 403)
         self.assertEqual(self.pedir('/api/estado', token='')[0], 403)
+
+    def test_publicacao_no_caminho_do_ts01(self):
+        _, self.config_portal = self.iniciar_executor('https://ts01')
+        host = {'HTTP_HOST': 'ts01'}
+        status, cabecalhos, _ = self.pedir('/impressao-ops', **host)
+        self.assertEqual((status, cabecalhos), (308, [('Location', '/impressao-ops/')]))
+        self.assertEqual(self.pedir('/', **host)[0], 404)
+        self.assertEqual(self.pedir('/impressao-ops-falso/', **host)[0], 404)
+        status, _, corpo = self.pedir('/impressao-ops/', **host)
+        self.assertEqual(status, 200)
+        self.assertIn(b'src="impressao.js"', corpo)
+        token = re.search(rb'name="impressao-token" content="([^"]+)"', corpo)[1].decode()
+        self.assertEqual(self.pedir('/impressao-ops/impressao.js', **host)[0], 200)
+        self.assertEqual(self.pedir('/impressao-ops/api/estado', token=token, **host)[0], 200)
+        self.assertEqual(self.pedir('/impressao-ops/api/parar', {}, token,
+                                    HTTP_ORIGIN='https://outra.origem', **host)[0], 403)
+        self.assertEqual(self.pedir('/impressao-ops/api/conferir',
+                                    {'modo': 'lista', 'ordens': '1', 'setor': '10',
+                                     'impressora': self.nomes[0]}, token,
+                                    HTTP_ORIGIN='https://ts01', **host)[0], 200)
 
     def test_bloqueia_acesso_direto_e_rotas_de_controle_local(self):
         conexao = HTTPConnection('127.0.0.1', self.servidor.server_port)

@@ -44,6 +44,7 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
     setTimeout() { if (!portal) throw Error('O painel local parado não deve agendar atualização.'); },
     fetch: async (url, opcoes) => {
       requisicoes.push({url, opcoes});
+      if (portal && url.startsWith('api/')) url = '/' + url;
       if (url === '/api/acompanhar') {
         opcoes.signal.addEventListener('abort', () => recusarLeitura?.(Error('Cancelado')));
         return {ok: true, body: {getReader: () => ({read: () => new Promise((resolve, reject) => { leitura = resolve; recusarLeitura = reject; })})}};
@@ -122,7 +123,7 @@ test('portal preserva a autenticação do Edge e fechar a janela não envia para
   await avancar();
   assert.equal(ui.obter('encerrar').hidden, true);
   const [pedido] = ui.requisicoes;
-  assert.equal(pedido.url, '/api/estado');
+  assert.equal(pedido.url, 'api/estado');
   assert.equal(pedido.opcoes.headers['X-Impressao-Token'], 'token-sintetico');
   assert.equal(pedido.opcoes.headers.Authorization, undefined);
   ui.eventos.beforeunload({preventDefault() { assert.fail('Portal não bloqueia fechar a janela'); }});
@@ -444,11 +445,11 @@ test('Sisplan ocupado preserva a conferência e exige novo clique para imprimir'
   await ui.obter('imprimir').onclick();
   assert.equal(ui.obter('mensagem').textContent, 'Aguarde o Financeiro.');
   assert.equal(ui.obter('imprimir').disabled, false);
-  assert.equal(ui.requisicoes.filter(item => item.url === '/api/iniciar').length, 1);
+  assert.equal(ui.requisicoes.filter(item => item.url === 'api/iniciar').length, 1);
   ui.respostas.delete('/api/iniciar');
   await ui.obter('imprimir').onclick();
-  assert.equal(ui.requisicoes.filter(item => item.url === '/api/iniciar').length, 2);
-  assert.equal(ui.requisicoes.filter(item => item.url === '/api/conferir').length, 1);
+  assert.equal(ui.requisicoes.filter(item => item.url === 'api/iniciar').length, 2);
+  assert.equal(ui.requisicoes.filter(item => item.url === 'api/conferir').length, 1);
   ui.eventos.pagehide();
 });
 

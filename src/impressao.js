@@ -201,7 +201,7 @@ function mostrarLotes(lotes, comFaccao) {
   }
 }
 async function api(caminho, dados) {
-  const resposta = await fetch(caminho, {
+  const resposta = await fetch(portal ? caminho.slice(1) : caminho, {
     method: dados === undefined ? 'GET' : 'POST',
     keepalive: caminho === '/api/preferencia-consulta',
     headers: {...(portal ? {'X-Impressao-Token': token} : {Authorization: `Bearer ${token}`}),
@@ -321,7 +321,7 @@ $('confirmar-impressora').onclick = async () => {
 async function acompanhar() {
   if (encerrado || saindo) return;
   try {
-    const resposta = await fetch('/api/acompanhar', {
+    const resposta = await fetch(portal ? 'api/acompanhar' : '/api/acompanhar', {
       headers: {Authorization: `Bearer ${token}`, 'X-Impressao-Pagina': pagina}, signal: presenca.signal
     });
     if (!resposta.ok || !resposta.body) throw Error('Não foi possível acompanhar o painel.');

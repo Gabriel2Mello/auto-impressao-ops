@@ -39,9 +39,9 @@ foreach ($item in $sites) {
     }
     $autorizacao = $web.configuration.'system.webServer'.security.authorization
     $regras = @($autorizacao.SelectNodes('*'))
-    if ($regras.Count -ne 3 -or $regras[0].LocalName -ne 'clear' -or
-        $regras[1].accessType -ne 'Allow' -or $regras[1].roles -ne "GRATITUDE\$($item.Grupo)" -or
-        $regras[1].users -or $regras[2].accessType -ne 'Deny' -or $regras[2].users -ne '*') {
+    if ($regras.Count -ne 2 -or $regras[0].LocalName -ne 'clear' -or
+        $regras[1].LocalName -ne 'add' -or $regras[1].accessType -ne 'Allow' -or
+        $regras[1].roles -ne "GRATITUDE\$($item.Grupo)" -or $regras[1].users) {
         throw "Confira as regras de autorizacao de $($item.Nome)."
     }
 }
@@ -157,7 +157,6 @@ try {
         }
     }
 
-    $appHost = $iis.GetApplicationHostConfiguration()
     foreach ($item in $sites) {
         $nome = $item.Nome
         $pool = $iis.ApplicationPools[$nome]
@@ -176,8 +175,28 @@ try {
         }
         $binding = $site.Bindings[0]
         $binding.SslFlags = 'Sni'
-        $binding.CertificateStoreName = 'My'
-        $binding.CertificateHash = $cert.GetCertHash()
+    }
+    $iis.CommitChanges()
+} finally { $iis.Dispose() }
+
+# O vinculo IIS e o registro do certificado no HTTP.sys sao etapas distintas.
+Import-Module WebAdministration -ErrorAction Stop
+foreach ($item in $sites) {
+    $vinculos = @(Get-WebBinding -Name $item.Nome -Protocol https -Port $item.Porta -HostHeader $nomeTs |
+        Where-Object { $_.bindingInformation -eq $item.Binding -and [int]$_.sslFlags -eq 1 })
+    if ($vinculos.Count -ne 1) { throw "Vinculo HTTPS com SNI nao encontrado para $($item.Nome)." }
+    $vinculo = $vinculos[0]
+    if ($vinculo.certificateHash -ne $cert.Thumbprint -or $vinculo.certificateStoreName -ne 'My') {
+        $vinculo.AddSslCertificate($cert.Thumbprint, 'My')
+    }
+}
+
+# O IIS precisa reconhecer os sites gravados antes de abrir suas secoes por nome.
+$iis = [Microsoft.Web.Administration.ServerManager]::new()
+try {
+    $appHost = $iis.GetApplicationHostConfiguration()
+    foreach ($item in $sites) {
+        $nome = $item.Nome
         foreach ($secao in 'handlers','security/authorization','security/requestFiltering','httpErrors') {
             $appHost.GetSection("system.webServer/$secao", $nome).OverrideMode = 'Allow'
         }

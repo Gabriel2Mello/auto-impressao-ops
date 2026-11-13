@@ -20,7 +20,6 @@ def _postar(url, corpo):
             requisicao.Open('POST', url, True)
             requisicao.SetTimeouts(3000, 5000, 5000, 23000)
             requisicao.SetProxy(1)  # HTTPREQUEST_PROXYSETTING_DIRECT
-            requisicao.SetAutoLogonPolicy(1)  # AutoLogonPolicy_OnlyIfBypassProxy
             # Option é uma propriedade COM indexada.
             interface = requisicao._oleobj_
             try:
@@ -29,6 +28,8 @@ def _postar(url, corpo):
                     interface.Invoke(opcao, 0, pythoncom.DISPATCH_PROPERTYPUT, False, indice, valor)
             finally:
                 del interface
+            # A URL é fixa no TS01 e o WinHTTP pode não classificar o FQDN como intranet.
+            requisicao.SetAutoLogonPolicy(0)  # AutoLogonPolicy_Always
             requisicao.SetRequestHeader('Content-Type', 'application/json')
             requisicao.SetRequestHeader('Accept', 'application/json')
             requisicao.Send(corpo)

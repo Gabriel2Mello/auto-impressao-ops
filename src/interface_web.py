@@ -286,6 +286,7 @@ def criar_servidor(estado=None, porta=8766, medidor_abertura=None, modo_desktop=
                 self.post_painel()
 
         def post_painel(self):
+            nonlocal operador_portal, token_portal
             try:
                 tamanhos = self.headers.get_all('Content-Length', [])
                 if (len(tamanhos) != 1 or not tamanhos[0].isascii() or not tamanhos[0].isdigit()
@@ -298,6 +299,13 @@ def criar_servidor(estado=None, porta=8766, medidor_abertura=None, modo_desktop=
                 if not isinstance(dados, dict):
                     raise ValueError('Solicitação inválida.')
                 caminho = urlsplit(self.path).path
+                if caminho == '/api/sair' and portal is not None:
+                    if estado.worker is not None and estado.worker.is_alive():
+                        self.responder(409, {'erro': 'Aguarde a conclusão do lote para sair do acesso.'})
+                        return
+                    operador_portal = token_portal = None
+                    self.responder(200, {'ok': True})
+                    return
                 if caminho == '/api/conferir':
                     self.responder(200, estado.conferir(dados))
                     return

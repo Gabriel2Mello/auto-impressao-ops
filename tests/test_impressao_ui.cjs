@@ -121,6 +121,7 @@ test('ao sair de De, Até recebe o mesmo valor em cada intervalo', () => {
 test('portal preserva a autenticação do Edge e fechar a janela não envia parada', async () => {
   const ui = painel({portal:true});
   await avancar();
+  assert.equal(ui.obter('sair-acesso').hidden, false);
   assert.equal(ui.obter('encerrar').hidden, true);
   const [pedido] = ui.requisicoes;
   assert.equal(pedido.url, 'api/estado');
@@ -129,6 +130,21 @@ test('portal preserva a autenticação do Edge e fechar a janela não envia para
   ui.eventos.beforeunload({preventDefault() { assert.fail('Portal não bloqueia fechar a janela'); }});
   ui.eventos.pagehide();
   assert.equal(ui.requisicoes.length, 1);
+});
+
+test('sair do acesso libera o portal e desabilita o painel', async () => {
+  const ui = painel({portal:true});
+  await avancar();
+  const sair = ui.obter('sair-acesso');
+  assert.equal(sair.disabled, false);
+  await sair.onclick();
+  const pedido = ui.requisicoes.at(-1);
+  assert.equal(pedido.url, 'api/sair');
+  assert.equal(pedido.opcoes.method, 'POST');
+  assert.equal(pedido.opcoes.headers['X-Impressao-Token'], 'token-sintetico');
+  assert.equal(sair.disabled, true);
+  assert.equal(ui.obter('conferir').disabled, true);
+  assert.match(ui.obter('status').textContent, /Acesso liberado/);
 });
 
 test('preferência do Sisplan é restaurada do servidor e salva ao marcar e desmarcar', async () => {
@@ -544,6 +560,18 @@ test('resultados preservam a leitura e contam estados sem duplicar OPs', async (
   assert.equal(ui.obter('resultados').children.length,3);
   assert.equal(ui.obter('resultados').scrollTop,120);
   assert.equal(ui.obter('resultados').children[1].children[0].textContent,'Em andamento');
+  ui.eventos.pagehide();
+});
+
+test('sem impressora, conferir exibe aviso e mantém a aba atual', async () => {
+  const ui = painel(); await avancar();
+  ui.enviar(`data: ${JSON.stringify({...ui.estado, impressora: ''})}\n\n`); await avancar();
+  assert.equal(ui.obter('conferir').disabled, false);
+  await ui.obter('formulario').onsubmit({preventDefault(){}});
+  assert.equal(ui.obter('mensagem').textContent, 'Selecione uma impressora para continuar.');
+  assert.equal(ui.obter('formulario').hidden, false);
+  assert.equal(ui.obter('modo-conferencia').hidden, true);
+  assert.equal(ui.requisicoes.some(item => item.url === '/api/conferir'), false);
   ui.eventos.pagehide();
 });
 

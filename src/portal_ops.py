@@ -12,7 +12,7 @@ GET_PAINEL = frozenset({
 })
 POST_PAINEL = frozenset({
     '/api/conferir', '/api/iniciar', '/api/conferir-impressao',
-    '/api/impressora', '/api/preferencia-consulta', '/api/parar',
+    '/api/impressora', '/api/preferencia-consulta', '/api/parar', '/api/sair',
 })
 CAMINHO_TS01 = '/impressao-ops'
 ORIGEM_TS01 = 'https://ts01'

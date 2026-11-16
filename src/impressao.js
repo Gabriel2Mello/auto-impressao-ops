@@ -46,6 +46,7 @@ if (window.ResizeObserver) new window.ResizeObserver(atualizarSetaResultados).ob
 $('acompanhar-atual').onclick = () => { seguirResultados = true; acompanharResultadoAtual(); };
 
 function atualizarBotoes() {
+  if (portal) $('sair-acesso').disabled = ocupado || pendente || !online || encerrado;
   for (const id of ['demo-resultado', 'demo-exemplo']) {
     const controle = $(id);
     if (controle) controle.disabled = ocupado || pendente || encerrado || !online;
@@ -347,15 +348,16 @@ async function acompanhar() {
   }
 }
 async function acompanharPortal() {
-  if (saindo) return;
+  if (saindo || encerrado) return;
   try {
     const estado = await api('/api/estado');
+    if (saindo || encerrado) return;
     online = true;
     $('conexao').textContent = '';
     mostrarEstado(estado);
     atualizarBotoes();
   } catch (erro) {
-    if (saindo) return;
+    if (saindo || encerrado) return;
     if (erro.status !== 409) {
       online = false;
       atualizarBotoes();
@@ -367,6 +369,10 @@ async function acompanharPortal() {
 }
 $('formulario').onsubmit = async evento => {
   evento.preventDefault(); if (pendente || ocupado || encerrado) return;
+  if (!impressora) {
+    $('mensagem').textContent = 'Selecione uma impressora para continuar.';
+    return;
+  }
   const dados = entrada();
   pendente = true; atualizarBotoes(); $('mensagem').textContent = '';
   if (dados.consultar_sisplan) $('mensagem').textContent = modo === 'pedido'
@@ -403,6 +409,28 @@ $('imprimir').onclick = async () => {
 };
 $('parar').onclick = async () => {
   try { mostrarEstado(await api('/api/parar', {})); } catch (erro) { $('mensagem').textContent = erro.message; }
+};
+$('sair-acesso').onclick = async () => {
+  if ($('sair-acesso').disabled) return;
+  pendente = true;
+  atualizarBotoes();
+  try {
+    await aguardarPreferencias();
+    await api('/api/sair', {});
+    encerrado = true;
+    online = false;
+    $('mensagem').textContent = '';
+  } catch (erro) {
+    $('mensagem').textContent = erro.message;
+  } finally {
+    pendente = false;
+    atualizarBotoes();
+  }
+  if (encerrado) {
+    $('status').hidden = false;
+    $('status').textContent = 'Acesso liberado. Você pode fechar esta aba.';
+    $('conexao').textContent = 'Acesso encerrado';
+  }
 };
 $('encerrar').onclick = async () => {
   if (encerrado) return;
@@ -467,7 +495,9 @@ if (desktop) {
 adicionarIntervalo();
 if (portal) {
   $('encerrar').hidden = true;
-  window.addEventListener('pageshow', evento => { if (evento.persisted) window.location.reload(); });
+  $('sair-acesso').hidden = false;
+  atualizarBotoes();
+  window.addEventListener('pageshow', evento => { if (evento.persisted && !encerrado) window.location.reload(); });
   acompanharPortal();
 } else {
   acompanhar();

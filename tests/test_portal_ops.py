@@ -131,6 +131,19 @@ class TestPortalOps(ComImpressoras):
             self.assertEqual(self.pedir('/api/estado', token=token)[0], 403)
             self.assertNotEqual(self.abrir(), token)
 
+    def test_sair_libera_a_conta_e_invalida_o_token(self):
+        token = self.abrir()
+        outra = r'GRATITUDE\outra'
+        self.assertEqual(self.pedir('/api/sair', {}, token, conta=outra)[0], 403)
+        self.assertEqual(self.pedir('/api/sair', {}, token, HTTP_ORIGIN='https://outra.origem')[0], 403)
+        self.assertEqual(self.pedir('/api/sair', {}, 'b' * 43)[0], 403)
+        self.assertEqual(self.pedir(conta=outra)[0], 409)
+        self.assertEqual(self.pedir('/api/sair', {}, token)[0], 200)
+        self.assertEqual(self.pedir('/api/estado', token=token)[0], 403)
+        self.assertEqual(self.pedir(conta=outra)[0], 200)
+        self.assertEqual(self.pedir('/api/sair', {}, token)[0], 403)
+        self.assertEqual(self.pedir()[0], 409)
+
     def test_conferencia_obrigatoria_e_lote_continua_sem_navegador(self):
         token = self.abrir()
         dados = dict(modo='lista', ordens='1', setor='10', impressora=self.nomes[0])
@@ -141,6 +154,7 @@ class TestPortalOps(ComImpressoras):
         conferencia = json.loads(corpo)['conferencia_id']
         self.assertEqual(self.pedir('/api/iniciar', dict(dados, conferencia_id=conferencia), token)[0], 200)
         self.assertTrue(self.entrou.wait(1))
+        self.assertEqual(self.pedir('/api/sair', {}, token)[0], 409)
         self.assertEqual(self.pedir(conta=r'GRATITUDE\outra')[0], 409)
         self.servidor.service_actions()
         self.assertFalse(self.servidor.fechando)
@@ -148,6 +162,7 @@ class TestPortalOps(ComImpressoras):
         self.estado.worker.join(3)
         self.assertFalse(self.parou)
         self.assertEqual(self.estado.situacao()['fase'], 'concluido')
+        self.assertEqual(self.pedir('/api/sair', {}, token)[0], 200)
 
     def test_reserva_recusada_preserva_conferencia_sem_criar_lote(self):
         token = self.abrir()
